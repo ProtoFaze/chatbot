@@ -17,3 +17,25 @@ A simple Streamlit app that shows how to build a chatbot using OpenAI's GPT-3.5.
    ```
    $ streamlit run streamlit_app.py
    ```
+# Salesman Chatbot
+
+this project is a step by step development project of an insurance salesman chatbot   
+the chatbot should be trained on a corpus of data related to a product it is selling   
+the bot is setup using open source options, no free trials from providers required
+
+# techstack
+JSON data sources
+MongoDB Atlas for general info storage
+Pinecone Vector DB for dedicated vector database
+ollama for edge device language model hosting
+python version 3.12 (langchain)
+
+# concepts
+tool calling, RAG
+
+# Further Improvements
+tool calling~done
+pdf processing pipeline~ in progress
+structured data corpus fetch~in progress
+health conditions dictionary 
+model training via unsloth

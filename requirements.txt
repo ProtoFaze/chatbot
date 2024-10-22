@@ -1,2 +1,13 @@
 streamlit
 openai
+pymongo
+langchain 
+langchain_community 
+langchain_mongodb 
+langchain_huggingface 
+nltk 
+langchain-ollama 
+langchain-pinecone 
+pinecone-notebooks 
+einops 
+langgraph
