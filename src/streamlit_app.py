@@ -1,24 +1,24 @@
 import streamlit as st
-from openai import OpenAI
-
+# from openai import OpenAI
+from langchain_ollama.chat_models import ChatOllama as Ollama
 # Show title and description.
-st.title("💬 Chatbot")
+st.title("💬 C2")
 st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+    "This is a simple chatbot that uses a Llama 3.2:3B model to generate responses."
+    "the model works by checking your input and searching for relevant documents in a connected database."
+    "To use this app, simply start typing in the chat input field below."
 )
 
 # Ask user for their OpenAI API key via `st.text_input`.
 # Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
 # via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# openai_api_key = st.text_input("OpenAI API Key", type="password")
+# if not openai_api_key:
+#     st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+# else:
 
     # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+    client = (api_key=openai_api_key)
 
     # Create a session state variable to store the chat messages. This ensures that the
     # messages persist across reruns.
