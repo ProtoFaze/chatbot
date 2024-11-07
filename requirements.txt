@@ -11,3 +11,4 @@ langchain-pinecone
 pinecone-notebooks 
 einops 
 langgraph
+python-dotenv
