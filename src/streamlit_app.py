@@ -1,6 +1,9 @@
 import streamlit as st
 from openai import OpenAI
 from langchain_ollama.chat_models import ChatOllama as Ollama
+from langchain_ollama.embeddings import OllamaEmbeddings as Embeddings
+# from langchain_huggingface.chat_models import ChatHuggingFace as HuggingFace
+# from langchain_huggingface.embeddings import HuggingFaceEmbeddings as Embeddings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -9,21 +12,31 @@ import os
 load_dotenv()
 import nltk
 import re
-nltk.download('wordnet')
 from nltk.corpus import stopwords, wordnet
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+
+try:
+    nltk.data.find('corpora/wordnet')
+except:
+    # print("sam ting wong")
+    nltk.download('wordnet')
+
+try:
+    nltk.data.find('corpora/stopwords')
+except:
+    nltk.download('stopwords')
 
 #initialize the lemmatizer
 lemmatizer = WordNetLemmatizer()
 #initialize the stopwords, remove specific stopwords
-stop_words = set(stopwords.words('english')).remove("both")
-
+stop_words = set(stopwords.words('english'))
+print("file has been rerun")
 PAGE_TITLE = "test"
-SYSTEM_PROMPT = """Your name is Casey, a top customer service agent at Great Eastern Life Assurance Malaysia.                 
-you have access to data about one specific product that is beings sold.
-The product is a life insurance policy that covers a wide range of benefits. 
-It is called Group Multiple Benefits Insurance Scheme""" 
+SYSTEM_PROMPT = """Your name is C3, a top customer service agent at Great Eastern Life Assurance Malaysia. 
+You answer questions from the user to help better understand a specific product that you sell.""" 
 DEFAULT_MODEL_ID = "llama3.2"
 
 def initialize_session_state():
@@ -35,8 +48,6 @@ def initialize_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-
-
 
 def preprocess_text(text):
     pattern = re.compile(r"[;@#&*!()\[\]]")
@@ -72,25 +83,33 @@ from pinecone import Pinecone
 pc = Pinecone(os.environ["PINECONE_API_KEY"])
 index = pc.Index(os.environ["PINECONE_INDEX_NAME"])
 
-from sentence_transformers import SentenceTransformer
-global_embedding_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+embedding = Embeddings(model="nomic-embed-text"
+                    #    , model_kwargs={"trust_remote_code":True}
+                       )
 number_of_dimensions = 768 #the embedding dimensions according to the model documentation
-
+from langchain_pinecone import PineconeVectorStore
+vector_store = PineconeVectorStore(index=index, embedding=embedding)
 def vectorize(texts):
     "vectorize the provided texts using a globally declared model."    
-    vectors = global_embedding_model.encode(texts)
+    vectors = embedding.encode(texts)
     return vectors
 
 #using local(ollama) base model as chatbot model
+# intent_classifier = HuggingFace(model_id='llama3.2',#:1B
+#                            temperature=0,
+#                            num_predict=4,
+#                            request_timeout=10,
+#                            verbose=False )
+# chatbot_model = HuggingFace(model_id='C3', request_timeout=60)
 intent_classifier = Ollama(model='llama3.2',#:1B
-                           temperature=0.1,
+                           temperature=0,
                            num_predict=4,
                            request_timeout=10,
                            verbose=False )
-chatbot_model = Ollama(model='C3', request_timeout=60)
+chatbot_model = Ollama(model='llama3.2', request_timeout=60)
 
 #setup the semantic search function
-def semantic_search(question, model=global_embedding_model, index=index, top_k=6, debug=False):
+def semantic_search(question, vector_store=vector_store, index=index, top_k=6, verbose=False):
     """vectorizes the question and queries the pinecone index for the top 3 closest matches.
 
 current implementation does not support querying multiple namespaces or using mongoDB indexes.
@@ -98,7 +117,7 @@ current implementation does not support querying multiple namespaces or using mo
 Args:
     question (str): _description_
     debug (bool, optional): _description_. Defaults to False.
-    model (SentenceTransformer, optional): _description_. Defaults to global_embedding_model.
+    embedding (SentenceTransformer, optional): _description_. Defaults to embedding.
     index (Pinecone.Index, optional): _description_. Defaults to index.
 
 Returns:
@@ -107,28 +126,22 @@ Returns:
     if not index:
         print("Index not found, please specify your pinecone or mongo search index")
         return
-    if not model:
-        print("Model not found")
-        return
-    if debug:
-        print("Encoding question...")
+
+    print("Encoding question...") if verbose else None
         
-    vectors = model.encode(question)
-    
-    if not isinstance(vectors, list): # Ensure vectors is a list of floats
-        vectors = vectors.tolist()
     matches = []
     spaces = index.describe_index_stats()['namespaces']
+    print(f"""using namespaces: {spaces}""") if verbose else None
     for key, value in spaces.items():
-        res = index.query(
-            namespace=key,
-            vector=vectors,
-            top_k=top_k,
-            include_metadata=False,
-            include_values=False
+        res = vector_store.similarity_search(
+            query=question,
+            k=top_k
+        #     namespace=key,
         )
         matches.append(res)
-        print(res['usage'])
+    if len(matches) < 1:
+        raise Exception("No matches found, please check your search index, it may be empty or not connected")
+        
     return matches
 
 #setup a function to receive semantic search results and return the collection name and ids
@@ -142,36 +155,54 @@ def get_collection_matches(response : list, verbose=False) -> list:
     Returns:
         list: list of mongodb documents
     """
-    if verbose:
-        print("Getting collection matches...")
+    def extract_info(match: str) -> dict:
+        data_from_id = None
+        try:
+            data_from_id = match['id'].split("-")
+        except TypeError as e: #probably a document object
+            data_from_id = match.id.split("-")
+        match_id = data_from_id[0]
+        collection_name = data_from_id[1]
+        return {'collection':collection_name, 'id':match_id}
+    
+    print("Getting collection matches...") if verbose else None
     document_metadata = []
-    for collection_matches in response:
-        collection = collection_matches['namespace']
+    for namespaces_or_documents in response:
         is_using_default_namespace = False
-        if collection == "":
-            is_using_default_namespace = True
+        if isinstance(namespaces_or_documents, list):
             if verbose:
                 print("no pinecone namespace found, checking id or additional metadata")
-        ids = []
-        for match in collection_matches['matches']:
-            if verbose:
-                print(match)
-            data_from_id = match['id'].split("-")
-            match_id = data_from_id[0]
-            if is_using_default_namespace:
-                collection = data_from_id[1]
-            #filter out duplicate ids
-            if match_id not in ids:
-                ids.append(match_id)
-            else:
+            for metadata in namespaces_or_documents:
+                document = extract_info(metadata)
+                if document in document_metadata:
+                    if verbose:
+                        print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
+                    continue
+                document_metadata.append(document)
+        else: #probably a dictionary
+            document = extract_info(namespaces_or_documents)
+            if document in document_metadata:
                 if verbose:
-                    print(f"Duplicate id {match_id} for {collection} found in fetch list, ignoring")
+                    print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
                 continue
-            if is_using_default_namespace:
-                document_metadata.append({'collection':collection, 'id':match_id})
-        if not is_using_default_namespace:
+            ids = []
+            for match in collection:
+                if verbose:
+                    print(match)
+                data_from_id = match['id'].split("-")
+                match_id = data_from_id[0]
+                if is_using_default_namespace:
+                    collection = data_from_id[1]
+                #filter out duplicate ids
+                if match_id not in ids:
+                    ids.append(match_id)
+                else:
+                    if verbose:
+                        print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
+                    continue
+                if is_using_default_namespace:
+                    document_metadata.append({'collection':collection, 'id':match_id})
             document_metadata.append({'collection':collection, 'ids':ids})
-        
     return document_metadata
 
 #find the mongo documents based on their collection and ids
@@ -187,8 +218,7 @@ def find_documents(collection_matches : list, verbose=False, database=db) -> lis
     Returns:
         list: list of mongodb documents
     """
-    if verbose:
-        print("Finding documents...")
+    print(f"Finding documents using {len(collection_matches)} references") if verbose else None
     documents = []
     for collection_match in collection_matches:
         collection = database[collection_match['collection']]
@@ -197,100 +227,71 @@ def find_documents(collection_matches : list, verbose=False, database=db) -> lis
                 documents.append(collection.find_one({"_id": oid(id)}))
         else:
             documents.append(collection.find_one({"_id": oid(collection_match['id'])}))
+    if verbose:
+        for document in documents:
+            print(document)
     return documents
 
 #setup the chatbot model for tool use
 from langchain_core.tools import tool
 import re
 
-@tool
-def fetch_metrics(question: str) -> list:
-    """Retrieves only JSON of table data for either premium plans, total investment estimations, premium allocation or fund performance based on the user query."""
-    cleaned_question = preprocess_text(question)
-    documents = []
-    has_fetched_preimum_plans = False
-    has_fetched_total_investment_estimation = False
-    has_fetched_fund = False
-    has_fetched_premium_allocation = False
-    for keyword in re.findall(r'\b\w+\b', cleaned_question):
-        match keyword:
-            case "premium" | "plan" | "coverage" | "price" | "pricing":
-                if not has_fetched_preimum_plans:
-                    print("fetching premium plans")
-                    
-                    documents.append(list(db["premium_plans"].find()))
-                    has_fetched_preimum_plans = True
-            case "investment" | "value" | "allocation":
-                if not has_fetched_total_investment_estimation:
-                    print("fetching investment plans")
-                    
-                    documents.append(list(db["total_investment_estimations"].find()))
-                    has_fetched_total_investment_estimation = True
-            case "performance" | "perform" | "fund":
-                if not has_fetched_fund:
-                    print("fetching fund performance")
-                    
-                    documents.append(list(db["funds"].find()))
-                    has_fetched_fund = True
-            case "allocation":
-                if not has_fetched_premium_allocation:
-                    print("fetching premium allocation")
-                    
-                    documents.append(list(db["premium_allocations"].find()))
-                    has_fetched_premium_allocation = True
-            case _:
-                continue
-
-    return documents
-
-@tool
-def get_context(question: str, debug: bool = False) -> list:
+def get_context(question: str, verbose: bool = False) -> list:
     """Retrieves text-based information for an insurance product only based on the user query.
 does not answer quwstions about the chat agent"""
     print(question)
-    matches = semantic_search(question, debug=debug)
-    document_data = get_collection_matches(matches, debug=debug)
-    context = find_documents(document_data, debug=debug)
-    return context
+    matches = semantic_search(question, verbose=verbose)
+    document_data = get_collection_matches(matches, verbose=verbose)
+    context = find_documents(document_data, verbose=verbose)
+    # if verbose:
+    #     for message in messages:
+    #         print(message)
+    template = ChatPromptTemplate.from_template(f"""fullfill the query with the provided information
+Do not include greetings or thanks for providing relevant information
+Query      :{{question}}
+Information:{{context}}""")
 
-tools = [fetch_metrics,
-        get_context
-        ]
-toolPicker = Ollama(model='llama3.2').bind_tools(tools)
+    # RAG pipeline
+    chain = {
+        "context": lambda x: context , "question": RunnablePassthrough()
+        } | template | chatbot_model | StrOutputParser()
+    return chain.stream(question)
+
 
 #setup the RAG workflow
 from pydantic import ValidationError
 
-def RAG(query : str, verbose : bool | None = False):
-    if query in ["exit", "quit", "bye", "end", "stop", ""]:
-        return
-    if verbose:
-        tool_query=query+" (Turn on debug mode)"
-    else:
-        tool_query=query
-    messages = [query]
+# def RAG(query : str, verbose : bool | None = False):
+#     if query in ["exit", "quit", "bye", "end", "stop", ""]:
+#         return
+#     if verbose:
+#         tool_query=query+" (Turn on debug mode)"
+#     else:
+#         tool_query=query
+#     messages = [query]
     
-    ai_msg = toolPicker.invoke(tool_query)
-    for tool_call in ai_msg.tool_calls:
-        selected_tool = {"fetch_metrics": fetch_metrics,
-                        "get_context": get_context
-                        }[tool_call["name"].lower()]
+#     ai_msg = toolPicker.invoke(tool_query)
+#     for tool_call in ai_msg.tool_calls:
+#         selected_tool = {"fetch_metrics": fetch_metrics,
+#                         "get_context": get_context
+#                         }[tool_call["name"].lower()]
 
-        tool_msg = None 
-        try:
-            tool_msg = selected_tool.invoke(tool_call)
-        except ValidationError as e:
-            print(f"Error: {e.json()}")
-        messages.append(f"connected {tool_call['name'].lower()} function returned {tool_msg.content}")
+#         tool_msg = None 
+#         try:
+#             tool_msg = selected_tool.invoke(tool_call)
+#         except ValidationError as e:
+#             print(f"Error: {e.json()}")
+#         messages.append(f"connected {tool_call['name'].lower()} function returned {tool_msg.content}")
 
-    if verbose:
-        for message in messages:
-            print(message)
+#     if verbose:
+#         for message in messages:
+#             print(message)
 
-    return chatbot_model.stream(f"""fullfill the query with the provided information
-query      :{query}
-information:{messages}""")
+#     return chatbot_model.stream(f"""fullfill the query with the provided information
+# query      :{query}
+# information:{messages}""")
 
+#setup a simple intent classifier
 #setup a simple intent classifier
 def classify_intent(user_input:str) -> str:
     """classify the intent of the user input
@@ -300,7 +301,8 @@ with few-shot prompting examples
 for classifying 'normal', 'register', 'RAG' intents
 
 """
-    return intent_classifier.invoke(f"""Classify the given input, answer only with 'normal','register','RAG':
+    return intent_classifier.invoke(f"""
+Classify the given input, use RAG if it is asking about insurance products,answer only with 'normal','register','RAG','verify':
 
 example:
 
@@ -335,28 +337,49 @@ Input: "What funds are involved", Intent: RAG
 Input: "Where are you located", Intent: normal
 Input: "Who do I contact for help", Intent: RAG
 Input: "Can I pay with a credit card", Intent: RAG
-Input: "Why should i trust you", Intent: normal
+Input: "Why should i trust you", Intent: verify
 Input: "What should i get ready for enrollment", Intent: register
 Input: "How are you", Intent": normal
 Input: "What company distributes this service", Intent: RAG
+Input: "How do i know you are not a scam", Intent: verify
 Input: "Are there any additional charges", Intent: RAG
 Input: "What can you tell me about the available insurance plans", Intent: RAG
-Input: "how much do i need to pay for the insurance scheme", Intent: RAG
-Input: "tell me about the available insurance plans", Intent: RAG
+Input: "How much do i need to pay for the insurance scheme", Intent: RAG
+Input: "Tell me about the available insurance plans", Intent: RAG
+Input: "How did you get my number", Intent: verify
+Input: "Show me verification so i know this isn't a scam", Intent: verify
+Input: "How do i know you are not scamming me", Intent: verify
+Input: "Why should I sign up for this plan", Intent: RAG
 
 Input: {user_input}""").content
 
-def chat(user_input: str) -> None:
+def chat(user_input: str, verbose: bool = False):
     intent = classify_intent(user_input)
     print(intent)
-    if intent == "RAG":
-        stream = RAG(user_input)
-    elif intent == "register":
-        print("register function work in progress")
-    else:
-        stream = chatbot_model.stream(user_input)
-    for chunk in stream:
-        print(chunk.content, end="", flush=True)
+    match intent:
+        case "RAG":
+            return get_context(user_input, verbose=verbose)
+        case "register":
+            prompt = ChatPromptTemplate.from_template(f"Please provide this link https://greatmultiprotect.com/gss315-spif/ to address the given query \
+                \nQuery: {{input}}")
+            chain = prompt | chatbot_model | StrOutputParser()
+            return chain.stream({"input":user_input})
+        case "normal":
+            chain = chatbot_model | StrOutputParser()
+            return chain.stream(user_input)
+        case "verify":
+            prompt = ChatPromptTemplate.from_template(f"Please answer the given question\
+                Question: {{input}}\
+                Context:\
+                user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties.\
+                user can obtain verification by emailing this address: damonngkhaiweng@greateasternlife.com")
+            print(prompt)
+            chain = prompt | chatbot_model | StrOutputParser()
+            return chain.stream({"input":user_input})
+        case _:
+            chain = chatbot_model | StrOutputParser()
+            return chain.stream(user_input)
+            
 
 def main() -> None:
     """
@@ -367,7 +390,7 @@ def main() -> None:
     chat history, processes user inputs, and displays AI responses.
     """
     st.set_page_config(
-        page_title="Chat playground",
+        page_title="Chat about GMBIS",
         page_icon="💬",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -411,7 +434,8 @@ def main() -> None:
         with st.spinner("Thinking..."):
             config = {"configurable": {"session_id": "any"}}
             try:
-                response = chain_with_history.stream({"input": prompt}, config=config)
+                # response = get_context(prompt, verbose=True)
+                response = chat(prompt, verbose=True)
                 st.chat_message("ai").write_stream(response)
             except ConnectionError as e:
                 st.error(f"Connection error: {e}", icon="😎")
