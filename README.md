@@ -39,3 +39,7 @@ pdf processing pipeline~ in progress
 structured data corpus fetch~in progress
 health conditions dictionary 
 model training via unsloth
+
+# Acknowledgement
+Thanks for sharing this demo using streamlit with ollama for prototyping   
+https://github.com/tonykipkemboi/ollama_streamlit_demos/blob/main/01_%F0%9F%92%AC_Chat.py 
