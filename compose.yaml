@@ -12,13 +12,14 @@ services:
     working_dir: /src
     command: bash -c "pip install -r requirements.txt && streamlit run app.py"
     restart: unless-stopped
-    
+
   ollama:
-    image: "ollama/ollama"
+    image: "ollama/ollama" #use the latest image
     networks:
       - internal-net
     volumes:
-      - ollama_models:/root/.ollama/models
+      - ollama_models:/root/.ollama/models / #specify a directory to store models
+      - ./modelfiles:/modelfiles #target project_dir/models for custom model files
 
 networks:
   internal-net:

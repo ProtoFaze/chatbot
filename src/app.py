@@ -32,6 +32,8 @@ if os.environ["PINECONE_INDEX_NAME"] not in [vector_index.name for vector_index 
 else:
     index = pinecone_client.Index(os.environ["PINECONE_INDEX_NAME"])
 
+print("connected to pinecone index")
+
 try:
     nltk.data.find('corpora/wordnet')
 except:
@@ -118,15 +120,16 @@ Returns:
         return
 
     print("Encoding question...") if verbose else None
-        
+    vector = ollama_client.embeddings(model="nomic-embed-text", prompt=question)['embedding']
     matches = []
     spaces = index.describe_index_stats()['namespaces']
     print(f"""using namespaces: {spaces}""") if verbose else None
     for key, value in spaces.items():
         res = index.query(
-            query=question,
-            k=top_k
-        #     namespace=key,
+            vector=vector,
+            top_k=top_k,
+            namespace=key,
+            
         )
         matches.append(res)
     if len(matches) < 1:
@@ -157,7 +160,7 @@ def get_collection_matches(response : list, verbose=False) -> list:
     
     print("Getting collection matches...") if verbose else None
     document_metadata = []
-    for namespaces_or_documents in response:
+    for namespaces_or_documents in response: #iterate over the namespaces
         is_using_default_namespace = False
         if isinstance(namespaces_or_documents, list):
             if verbose:
@@ -169,30 +172,15 @@ def get_collection_matches(response : list, verbose=False) -> list:
                         print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
                     continue
                 document_metadata.append(document)
-        else: #probably a dictionary
-            document = extract_info(namespaces_or_documents)
-            if document in document_metadata:
-                if verbose:
-                    print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
-                continue
-            ids = []
-            for match in collection:
-                if verbose:
-                    print(match)
-                data_from_id = match['id'].split("-")
-                match_id = data_from_id[0]
-                if is_using_default_namespace:
-                    collection = data_from_id[1]
-                #filter out duplicate ids
-                if match_id not in ids:
-                    ids.append(match_id)
-                else:
+        elif ('matches' in namespaces_or_documents): #probably a dictionary
+            matches = namespaces_or_documents['matches']
+            for match in matches:
+                document = extract_info(match)
+                if document in document_metadata:
                     if verbose:
                         print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
                     continue
-                if is_using_default_namespace:
-                    document_metadata.append({'collection':collection, 'id':match_id})
-            document_metadata.append({'collection':collection, 'ids':ids})
+                document_metadata.append(document)
     return document_metadata
 
 #find the mongo documents based on their collection and ids
@@ -226,27 +214,30 @@ def find_documents(collection_matches : list, verbose=False, database=db) -> lis
 # from langchain_core.tools import tool
 # import re
 
-# def get_context(question: str, verbose: bool = False) -> list:
-#     """Retrieves text-based information for an insurance product only based on the user query.
-# does not answer quwstions about the chat agent"""
-#     print(question)
-#     matches = semantic_search(question, verbose=verbose)
-#     document_data = get_collection_matches(matches, verbose=verbose)
-#     context = find_documents(document_data, verbose=verbose)
-#     # if verbose:
-#     #     for message in messages:
-#     #         print(message)
-#     template = ChatPromptTemplate.from_template(f"""fullfill the query with the provided information
-# Do not include greetings or thanks for providing relevant information
-# Query      :{{question}}
-# Information:{{context}}""")
-
-#     # RAG pipeline
-#     chain = {
-#         "context": lambda x: context , "question": RunnablePassthrough()
-#         } | template | chatbot_model | StrOutputParser()
-#     return chain.stream(question)
-
+def get_context(question: str, verbose: bool = False) -> list:
+    """Retrieves text-based information for an insurance product only based on the user query.
+does not answer quwstions about the chat agent"""
+    matches = None
+    document_data = None
+    context = None
+    with st.spinner("fetching similar information..."):
+        matches = semantic_search(question, verbose=verbose)
+    with st.spinner("filtering fetched data..."):
+        document_data = get_collection_matches(matches, verbose=verbose)
+    with st.spinner("pulling documents..."):
+        context = find_documents(document_data, verbose=verbose)
+    # if verbose:
+    #     for message in messages:
+    #         print(message)
+    messages = [{'role': 'user', 'content':f"""fullfill the query with the provided information
+Do not include greetings or thanks for providing relevant information
+Query      :{question}
+Information:{context}"""}]
+    return ollama_client.chat(
+            model=st.session_state['model'],
+            messages=messages,
+            stream=True
+        )
 
 # #setup the RAG workflow
 # from pydantic import ValidationError
@@ -285,89 +276,49 @@ def find_documents(collection_matches : list, verbose=False, database=db) -> lis
 def classify_intent(user_input:str) -> str:
     """classify the intent of the user input
 
-current implementation uses a lightweight model (llama3.2:1B)
+current implementation uses a lightweight model (llama3.2)
 with few-shot prompting examples
 for classifying 'normal', 'register', 'RAG' intents
 
 """
-    return intent_classifier.invoke(f"""
-Classify the given input, use RAG if it is asking about insurance products,answer only with 'normal','register','RAG','verify':
-
-example:
-
-Input: "Is there a contact number", Intent: RAG
-Input: "How do I create a new account", Intent: register
-Input: "How do I make a claim", Intent: RAG
-Input: "Search the web for cat videos", Intent: normal
-Input: "Help me register for this service", Intent: register
-Input: "Where can I get started", Intent: register
-Input: "What is your name", Intent: normal
-Input: "What entities are attached to this service", Intent: RAG
-Input: "What is your purpose", Intent: normal
-Input: "Can I see some fund performance metrics", Intent: RAG
-Input: "What is the weather in your country", Intent: normal
-Input: "How can i register for an account", Intent: register
-Input: "Who owns the product", Intent: RAG
-Input: "Tell me how to subscribe", Intent: register
-Input: "Guide me through the registration process", Intent: register
-Input: "How do I sign up for the trial", Intent: register
-Input: "Can you explain your features", Intent: normal
-Input: "Sign me up", Intent: register
-Input: "Can you assist me with enrolling", Intent: register
-Input: "What services does the product provide", Intent: RAG
-Input: "Where can i wash my dog", Intent: normal
-Input: "Goodbye", Intent: normal
-Input: "How do i pay for the service", Intent: RAG
-Input: "how is my premium allocated", Intent: RAG
-Input: "Hello", Intent: normal
-Input: "What are the coverage options", Intent: RAG
-Input: "What's the first step to register", Intent: register
-Input: "What funds are involved", Intent: RAG
-Input: "Where are you located", Intent: normal
-Input: "Who do I contact for help", Intent: RAG
-Input: "Can I pay with a credit card", Intent: RAG
-Input: "Why should i trust you", Intent: verify
-Input: "What should i get ready for enrollment", Intent: register
-Input: "How are you", Intent": normal
-Input: "What company distributes this service", Intent: RAG
-Input: "How do i know you are not a scam", Intent: verify
-Input: "Are there any additional charges", Intent: RAG
-Input: "What can you tell me about the available insurance plans", Intent: RAG
-Input: "How much do i need to pay for the insurance scheme", Intent: RAG
-Input: "Tell me about the available insurance plans", Intent: RAG
-Input: "How did you get my number", Intent: verify
-Input: "Show me verification so i know this isn't a scam", Intent: verify
-Input: "How do i know you are not scamming me", Intent: verify
-Input: "Why should I sign up for this plan", Intent: RAG
-
-Input: {user_input}""").content
+    return ollama_client.chat(
+        model = "intentClassifier",
+        messages = [{"role":"user", "content":user_input}])["message"]["content"]
 
 def chat(user_input: str, verbose: bool = False):
-    intent = classify_intent(user_input)
-    print(intent)
+    intent = None
+    with st.spinner("Thinking..."):
+        intent = classify_intent(user_input)
     match intent:
         case "RAG":
             return get_context(user_input, verbose=verbose)
         case "register":
-            prompt = ChatPromptTemplate.from_template(f"Please provide this link https://greatmultiprotect.com/gss315-spif/ to address the given query \
-                \nQuery: {{input}}")
-            chain = prompt | chatbot_model | StrOutputParser()
-            return chain.stream({"input":user_input})
+            prompt = (f"Please provide this link https://greatmultiprotect.com/gss315-spif/ to address the given query \
+                \nQuery: {user_input}")
+            return ollama_client.chat(
+                model = "llama3.2",
+                messages = [{"role":"user", "content":prompt}],
+                stream = True)
         case "normal":
-            chain = chatbot_model | StrOutputParser()
-            return chain.stream(user_input)
+            return ollama_client.chat(
+                model = "llama3.2",
+                messages = [{"role":"user", "content":user_input}],
+                stream = True)
         case "verify":
-            prompt = ChatPromptTemplate.from_template(f"Please answer the given question\
-                Question: {{input}}\
-                Context:\
-                user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties.\
-                user can obtain verification by emailing this address: damonngkhaiweng@greateasternlife.com")
-            print(prompt)
-            chain = prompt | chatbot_model | StrOutputParser()
-            return chain.stream({"input":user_input})
+            return ollama_client.chat(
+                model = "llama3.2",
+                messages = [{"role":"user","content":f"Please answer the given question with the following context:\
+                    Question: {user_input}\
+                    Context:\
+                    user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties.\
+                    user can obtain verification by emailing this address: damonngkhaiweng@greateasternlife.com"}],
+                stream = True)
         case _:
-            chain = chatbot_model | StrOutputParser()
-            return chain.stream(user_input)
+            return ollama_client.chat(
+                model = "llama3.2",
+                messages = [{"role":"user", 
+                            "content":user_input}],
+                stream = True)
             
 
 # def main() -> None:
@@ -515,31 +466,6 @@ You answer questions from the user to help better understand a specific product 
 #                     break
 #     except Exception as e:
 #         progress_status.error(f"Failed to pull model: {str(e)}")
-    
-# Model selection module to be used within the Streamlit App layout.
-# def sl_module_model_selection():
-#     st.subheader("Model")
-
-#     models = load_models()
-#     model_options = {model['name']: (model['name'], model['description']) for model in models}
-#     model_identifier = st.selectbox(
-#         "Choose a model",
-#         options=list(model_options.keys()),
-#         format_func=lambda x: model_options[x][0]
-#     )
-
-#     if model_identifier:
-#         st.session_state['model'] = model_identifier
-        
-#         st.write(model_options[model_identifier][1])
-
-#         col1, col2 = st.columns(2, gap="small")
-#         with col1:
-#             if st.button("Update list", use_container_width=True):
-#               update_model_list()
-#         with col2:
-#             if st.button("Pull model", use_container_width=True):
-#               pull_ollama_model()
 
 def sl_module_chat():
   st.subheader("Chat")
@@ -556,30 +482,45 @@ with st.sidebar:
 
 st.header(f"{package_data['name']}")
 
+
+
+
 for message in st.session_state['chat_messages']:
     if message["role"] == "system":
         continue
     else:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        st.chat_message(message['role']).write(message['content'])
 
 if prompt := st.chat_input("How can I help?"):
+    
     st.session_state['chat_messages'].append({"role": "user", "content": prompt})
-
+    
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
         full_response = ""
-        for chunk in ollama_client.chat(
-            model=st.session_state['model'],
-            messages=st.session_state['chat_messages'],
-            stream=True,
-        ):
+        for chunk in chat(prompt, verbose=True):
             full_response += chunk['message']['content']
             response_placeholder.markdown(full_response + "▌")
         response_placeholder.markdown(full_response)
 
     st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
-    
+
+
+
+# for msg in msgs.messages:
+# #         st.chat_message(msg.type).write(msg.content)
+
+# #     if prompt := st.chat_input("Type your message here..."):
+# #         st.chat_message("human").write(prompt)
+
+# #         with st.spinner("Thinking..."):
+# #             config = {"configurable": {"session_id": "any"}}
+# #             try:
+# #                 # response = get_context(prompt, verbose=True)
+# #                 response = chat(prompt, verbose=True)
+# #                 st.chat_message("ai").write_stream(response)
+# #             except ConnectionError as e:
+# #                 st.error(f"Connection error: {e}", icon="😎")
