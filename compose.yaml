@@ -19,7 +19,9 @@ services:
       - internal-net
     volumes:
       - ollama_models:/root/.ollama/models / #specify a directory to store models
-      - ./modelfiles:/modelfiles #target project_dir/models for custom model files
+      - ./ollama-backend/modelfiles:/modelfiles #target project_dir/models for custom model files
+    ports:
+      - "11434:11434"
 
 networks:
   internal-net:
