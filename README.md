@@ -1,6 +1,6 @@
-# 💬 Chatbot template
+# 💬 RAG chatbot
 
-A simple Streamlit app that shows how to build a chatbot using OpenAI's GPT-3.5.
+A simple streamlit app that does RAG 
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://chatbot-template.streamlit.app/)
 
@@ -15,7 +15,7 @@ A simple Streamlit app that shows how to build a chatbot using OpenAI's GPT-3.5.
 2. Run the app
 
    ```
-   $ streamlit run streamlit_app.py
+   $ streamlit run src/streamlit_app.py
    ```
 # Salesman Chatbot
 
@@ -31,10 +31,9 @@ ollama for edge device language model hosting
 python version 3.12 (langchain)
 
 # concepts
-tool calling, RAG
+RAG
 
 # Further Improvements
-tool calling~done
 pdf processing pipeline~ in progress
 structured data corpus fetch~in progress
 health conditions dictionary 

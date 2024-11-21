@@ -1,12 +1,8 @@
 streamlit
 pymongo
-langchain 
-langchain_community 
-langchain_mongodb 
-langchain_huggingface 
 nltk 
-langchain-ollama 
-langchain-pinecone 
 einops 
-langgraph
 python-dotenv
+google-auth
+ollama
+pinecone

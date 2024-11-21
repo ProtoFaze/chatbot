@@ -7,7 +7,7 @@ ENV PINECONE_INDEX_NAME = 'product1'
 ENV STREAMLIT_SERVER_PORT = 8501
 ENV STREAMLIT_APP_FILE = 'src/app.py'
 COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
-EXPOSE 5000
+RUN pip install -r src/requirements.txt
+EXPOSE 8501
 COPY . .
 CMD ['streamlit', 'run', $STREAMLIT_APP_FILE]
