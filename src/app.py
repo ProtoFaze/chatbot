@@ -2,15 +2,17 @@ import ollama
 import google.oauth2.id_token
 from google.auth.transport.requests import Request as auth_req
 import streamlit as st
+from llama_index.vector_stores.mongodb import MongoDBAtlasVectorSearch
+from llama_index.core import VectorStoreIndex
+from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.embeddings.ollama import OllamaEmbedding
 
+from llama_index.core import Settings
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
 from pymongo import MongoClient
-
-from pinecone import Pinecone, ServerlessSpec
-
 
 # setup connections
 
@@ -21,6 +23,7 @@ def setup_ollama():
     match connection_type:
         case "localhost":
             ollama_client = ollama
+            Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text')
         case "google cloud":
             ollama_url = os.environ["OLLAMA_API_URL"]
             token = google.oauth2.id_token.fetch_id_token(request=auth_req(), audience=ollama_url)
@@ -30,140 +33,38 @@ def setup_ollama():
                     "Authorization": f"Bearer {token}"
                     }
                 )
+            Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text',base_url=os.environ["OLLAMA_API_URL"],headers={"Authorization": f"Bearer {token}"})
     return ollama_client
 
-# Connect to your MongoDB Atlas(Cloud) cluster
-mongoclient = MongoClient(os.environ["MONGODB_URI"])
-db = mongoclient[os.environ["MONGODB_DB"]]
+def setup_mongo():
+    # Connect to your MongoDB Atlas(Cloud) cluster
+    collection_name = 'llamaIndexChunks'
+    mongo_client = MongoClient(os.environ["MONGODB_URI"])
 
-# Connect to your pinecone vector database and specify the working index
-pinecone_client = Pinecone(os.environ["PINECONE_API_KEY"])
-index = None
-if os.environ["PINECONE_INDEX_NAME"] not in [vector_index.name for vector_index in pinecone_client.list_indexes()]:
-    index = pinecone_client.create_index(name = os.environ["PINECONE_INDEX_NAME"],
-                            dimension = 768, 
-                            metric = "cosine",
-                            spec = ServerlessSpec(cloud = "aws", region = "us-east-1") 
-                            )
-else:
-    index = pinecone_client.Index(os.environ["PINECONE_INDEX_NAME"])
+    index_name = 'vector_index'
+    vector_store = MongoDBAtlasVectorSearch(
+            mongodb_client=mongo_client,
+            db_name = os.environ["MONGODB_DB"],
+            collection_name = collection_name,
+            vector_index_name = index_name
+        )
+    st.session_state['vector_store'] = vector_store
+    vector_index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
-#setup the semantic search function
-def semantic_search(question, index=index, top_k=6, verbose=False):
-    """vectorizes the question and queries the pinecone index for the top 3 closest matches.
+    # Grab 5 search results
+    retriever = VectorIndexRetriever(index=vector_index, similarity_top_k=3)
+    st.session_state['retriever'] = retriever
+    st.write("MongoDB connection established")
 
-current implementation does not support querying multiple namespaces or using mongoDB indexes.
-
-Args:
-    question (str): _description_
-    debug (bool, optional): _description_. Defaults to False.
-    embedding (SentenceTransformer, optional): _description_. Defaults to embedding.
-    index (Pinecone.Index, optional): _description_. Defaults to index.
-
-Returns:
-    list(QueryResponse): the top closest query results from the pinecone index
-    """
-    if not index:
-        print("Index not found, please specify your pinecone or mongo search index")
-        return
-    
-    with st.spinner("fetching similar information..."):
-        if verbose: print("Encoding question...")
-        vector = ollama_client.embeddings(model="nomic-embed-text", prompt=question)['embedding']
-        matches = []
-        spaces = index.describe_index_stats()['namespaces']
-        if verbose: print(f"""using namespaces: {spaces}""")
-        for key, value in spaces.items():
-            res = index.query(
-                vector=vector,
-                top_k=top_k,
-                namespace=key,
-                
-            )
-            matches.append(res)
-        if len(matches) < 1:
-            raise Exception("No matches found, please check your search index, it may be empty or not connected")
-            
-    return matches
-
-#setup a function to receive semantic search results and return the collection name and ids
-def get_collection_matches(response : list, verbose=False) -> list:
-    """based on the response from a pinecone semantic search, extract and consolidate the collection name and ids of the matching documents.
-
-    Args:
-        response (list): a list of QueryResponse objects from a pinecone semantic search
-        verbose (bool, optional): flag to use debug mode. Defaults to False.
-
-    Returns:
-        list: list of mongodb documents
-    """
-    def extract_info(match: str) -> dict:
-        data_from_id = None
-        try:
-            data_from_id = match['id'].split("-")
-        except TypeError as e: #probably a document object
-            data_from_id = match.id.split("-")
-        match_id = data_from_id[0]
-        collection_name = data_from_id[1]
-        return {'collection':collection_name, 'id':match_id}
-    
-    with st.spinner("filtering fetched data..."):
-        if verbose: print("Getting collection matches...")
-        document_metadata = []
-        for namespaces_or_documents in response: #iterate over the namespaces
-            if isinstance(namespaces_or_documents, list):
-                if verbose: print("no pinecone namespace found, checking id or additional metadata")
-                for metadata in namespaces_or_documents:
-                    document = extract_info(metadata)
-                    if document in document_metadata:
-                        if verbose:
-                            print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
-                        continue
-                    document_metadata.append(document)
-            elif ('matches' in namespaces_or_documents): #probably a dictionary
-                matches = namespaces_or_documents['matches']
-                for match in matches:
-                    document = extract_info(match)
-                    if document in document_metadata:
-                        if verbose: print(f"Duplicate id {document['id']} for {document['collection']} found in fetch list, ignoring")
-                        continue
-                    document_metadata.append(document)
-    return document_metadata
-
-#find the mongo documents based on their collection and ids
-from bson.objectid import ObjectId as oid 
-def find_documents(collection_matches : list, verbose=False, database=db) -> list:
-    """use the collection matches to find the corresponding documents in the specified mongo database.
-
-    Args:
-        collection_matches (list): list of document metadata containing collection names and ids
-        verbose (bool, optional): flag to turn on debug mode. Defaults to False.
-        database (pymongo.synchronous.database.Database, optional): the mongodb database to use. Defaults to the db variable.
-
-    Returns:
-        list: list of mongodb documents
-    """
-    with st.spinner("pulling documents..."):
-        if verbose: print(f"Finding documents using {len(collection_matches)} references")
-        documents = []
-        for collection_match in collection_matches:
-            collection = database[collection_match['collection']]
-            if 'ids' in collection_match:
-                for id in collection_match['ids']:
-                    documents.append(collection.find_one({"_id": oid(id)}))
-            else:
-                documents.append(collection.find_one({"_id": oid(collection_match['id'])}))
-        if verbose:
-            for document in documents:
-                print(document)
-    return documents
 
 def get_context(question: str, verbose: bool = False) -> list:
     """Retrieves text-based information for an insurance product only based on the user query.
 does not answer quwstions about the chat agent"""
-    matches = semantic_search(question, verbose=verbose)
-    document_data = get_collection_matches(matches, verbose=verbose)
-    context = find_documents(document_data, verbose=verbose)
+    context = []
+    with st.spinner("retrieving context"):
+        retriever = st.session_state['retriever']
+        for node in retriever.retrieve(question):
+            context.append(node.text)
     messages = [{'role': 'user', 'content':f"""fullfill the query with the provided information
 Do not include greetings or thanks for providing relevant information
 Query      :{question}
@@ -209,7 +110,7 @@ def chat(user_input: str, verbose: bool = False):
         case "normal":
             with st.spinner("thinking about what to say"):
                 messages = [{"role":"user", "content":f"address the request if it is suitable for work,\
-                            otherwise apologise and state that you are not design to address these requests.\
+                            otherwise apologise and state that you are not designed to address these requests.\
                             Request: {user_input}"}]
             return ollama_client.chat(
                 model = st.session_state['model'],
@@ -286,6 +187,7 @@ with st.sidebar:
                 continue
             else:
                 st.write(f"{message['role']}: {message['content']}")
+    setup_mongo()
 
 for message in st.session_state['chat_messages']:
     if message["role"] == "system":
@@ -307,4 +209,4 @@ if prompt := st.chat_input("How can I help?"):
             full_response += chunk['message']['content']
             response_placeholder.markdown(full_response + "▌")
 
-    st.session_state.chat_messages.append({"role": "assistant", "content": full_response})   
+    st.session_state.chat_messages.append({"role": "assistant", "content": full_response})

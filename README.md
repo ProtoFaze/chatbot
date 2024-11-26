@@ -24,9 +24,9 @@ the chatbot should be trained on a corpus of data related to a product it is sel
 the bot is setup using open source options, no free trials from providers required
 
 # techstack
-JSON data sources
 MongoDB Atlas for general info storage
 Pinecone Vector DB for dedicated vector database
+llamaIndex for DAQ and indexing
 ollama for edge device language model hosting
 python version 3.12 (langchain)
 
