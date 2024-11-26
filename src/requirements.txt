@@ -1,3 +1,4 @@
+pip 
 streamlit
 pymongo
 nltk 
@@ -5,4 +6,4 @@ einops
 python-dotenv
 google-auth
 ollama
-pinecone
+"pinecone[grpc]"

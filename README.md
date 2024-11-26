@@ -40,5 +40,9 @@ health conditions dictionary
 model training via unsloth
 
 # Acknowledgement
-Thanks for sharing this demo using streamlit with ollama for prototyping   
+Thanks for sharing this demo 
+using streamlit with ollama for prototyping   
 https://github.com/tonykipkemboi/ollama_streamlit_demos/blob/main/01_%F0%9F%92%AC_Chat.py 
+using llamaparse with ollama
+https://github.com/sudarshan-koirala/llamaparser-example/blob/main/parser-ollama.py
+https://medium.com/@sudarshan-koirala/super-easy-way-to-parse-pdfs-a528fc9c2ea6 
