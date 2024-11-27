@@ -3,12 +3,12 @@ import google.oauth2.id_token
 from google.auth.transport.requests import Request as auth_req
 import streamlit as st
 from llama_index.vector_stores.mongodb import MongoDBAtlasVectorSearch
-from llama_index.core import VectorStoreIndex
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.embeddings.ollama import OllamaEmbedding
-
-from llama_index.core import Settings
+from llama_index.core import Settings, VectorStoreIndex
 import os
+from bson.objectid import ObjectId as oid 
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -40,7 +40,7 @@ def setup_mongo():
     # Connect to your MongoDB Atlas(Cloud) cluster
     collection_name = 'llamaIndexChunks'
     mongo_client = MongoClient(os.environ["MONGODB_URI"])
-
+    st.session_state['mongo_client'] = mongo_client
     index_name = 'vector_index'
     vector_store = MongoDBAtlasVectorSearch(
             mongodb_client=mongo_client,
@@ -51,10 +51,17 @@ def setup_mongo():
     st.session_state['vector_store'] = vector_store
     vector_index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
-    # Grab 5 search results
     retriever = VectorIndexRetriever(index=vector_index, similarity_top_k=3)
     st.session_state['retriever'] = retriever
     st.write("MongoDB connection established")
+    ids = mongo_client[os.environ["MONGODB_DB"]]['chat_history'].find({}, {"_id": 1})
+    id_list = [str(doc['_id']) for doc in ids]
+    st.session_state['id_list'] = id_list
+    unique_id = oid().__str__()
+    if unique_id not in id_list and "session_id" not in st.session_state:
+        st.session_state['session_id'] = unique_id
+        st.session_state['id_list'].append(unique_id)
+
 
 
 def get_context(question: str, verbose: bool = False) -> list:
@@ -88,7 +95,7 @@ for classifying 'normal', 'register', 'RAG' intents
             stream = False
         )['message']['content']
 
-def chat(user_input: str, verbose: bool = False):
+def chat(user_input: str):
     intent = None
     with st.spinner("detecting intent..."):
         #substring the last word from classify_intent and remove any trailing symbols
@@ -96,7 +103,7 @@ def chat(user_input: str, verbose: bool = False):
         intent = intent_response.split()[-1].strip('.,!?')
     match intent:
         case "rag":
-            return get_context(user_input, verbose=verbose)
+            return get_context(user_input)
         case "register":
             with st.spinner("fetching registration instructions"):
                 messages = [{"role":"system", "content":f"""The user is asking about information for registering to the insurnace scheme.
@@ -109,8 +116,7 @@ def chat(user_input: str, verbose: bool = False):
                 stream = True)
         case "normal":
             with st.spinner("thinking about what to say"):
-                messages = [{"role":"user", "content":f"address the request if it is suitable for work,\
-                            otherwise apologise and state that you are not designed to address these requests.\
+                messages = [{"role":"user", "content":f"Respond naturally and contextually to suitable work-related requests. For requests that are inappropriate or outside your design, politely decline to address them.\
                             Request: {user_input}"}]
             return ollama_client.chat(
                 model = st.session_state['model'],
@@ -141,33 +147,28 @@ st.set_page_config(
         initial_sidebar_state="expanded",
     )
 
-def initialize_chat_messages():
-    st.session_state['chat_messages'] = [
-        {"role": "system", "content": st.session_state['setup_prompt']}
-    ]
+def initialize_messages():
+    st.session_state['messages'] = []
 
 
 def initialize_streamlit_session():
     defaults = {
         "name": "Reference LLM Chatbot implementation using Streamlit and Ollama",
         "model": "C3",
-        "setup_prompt": """Your name is C3, a top customer service chatbot at Great Eastern Life Assurance Malaysia. 
-You only answer questions from the user to help better understand a specific product that you sell.""" ,
-        "temperature": 0.5
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
-    if 'chat_messages' not in st.session_state:
-        initialize_chat_messages()
+    if 'messages' not in st.session_state:
+        initialize_messages()
 
     st.header(f"{defaults['name']}")
 
 def sl_module_chat():
     st.header("Chat")
     if st.button("Reset chat window"):
-        initialize_chat_messages()
+        initialize_messages()
 
 ### Streamlit app
 initialize_streamlit_session()
@@ -175,21 +176,22 @@ initialize_streamlit_session()
 with st.sidebar:
     st.header("How it works")
     st.write("The RAG chatbot works by embedding user inputs.",
-            "The inputs are then used to query a pinecone index.",
-            "The top closest matches are then used to query the relevant documents from a mongoDB database.",
+            "The inputs are then used to query a mongodb index.",
+            "The top closest matches are then used to query the relevant documents",
             "Which is finally used as context for the response generation."
             )
     sl_module_chat()
     ollama_client = setup_ollama()
     with st.expander("conversations") as expander:
-        for message in st.session_state['chat_messages']:
+        for message in st.session_state['messages']:
             if message["role"] == "system":
                 continue
             else:
                 st.write(f"{message['role']}: {message['content']}")
     setup_mongo()
+    st.write(st.session_state.items())
 
-for message in st.session_state['chat_messages']:
+for message in st.session_state['messages']:
     if message["role"] == "system":
         continue
     else:
@@ -197,7 +199,7 @@ for message in st.session_state['chat_messages']:
 
 if prompt := st.chat_input("How can I help?"):
     
-    st.session_state['chat_messages'].append({"role": "user", "content": prompt})
+    st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -205,8 +207,18 @@ if prompt := st.chat_input("How can I help?"):
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
         full_response = ""
-        for chunk in chat(prompt, verbose=True):
+        for chunk in chat(prompt):
             full_response += chunk['message']['content']
             response_placeholder.markdown(full_response + "▌")
 
-    st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    
+    st.write(st.session_state['session_id'] in st.session_state['id_list'])
+    st.write(st.session_state['id_list'])
+    if st.session_state['session_id'] in st.session_state['id_list']:
+        st.write("updating")
+        st.session_state['mongo_client'][os.environ["MONGODB_DB"]]['chat_history'].update_one({ '_id': oid(st.session_state['session_id']) },
+                                                                                         { '$set': { 'chatlog': st.session_state['messages'] } })
+    else:
+        st.write("inserting")
+        st.session_state['mongo_client'][os.environ["MONGODB_DB"]]['chat_history'].insert_one({ '_id': oid(st.session_state['session_id']), 'chatlog': st.session_state['messages'] })
