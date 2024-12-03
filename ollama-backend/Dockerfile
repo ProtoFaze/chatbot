@@ -12,9 +12,10 @@ ENV OLLAMA_KEEP_ALIVE=-1
 ENV BASE_MODEL=llama3.2
 ENV EMBEDDING_MODEL=nomic-embed-text
 ENV INTENT_CLASSIFIER_PATH=./modelfiles/intentClassifier
+ENV C3_PATH=./modelfiles/C3
 
 ADD ./modelfiles /modelfiles
 # Copy the model files into the container
-RUN ollama serve & sleep 5 && ollama pull $BASE_MODEL && ollama pull $EMBEDDING_MODEL && ollama create intentClassifier -f $INTENT_CLASSIFIER_PATH
+RUN ollama serve & sleep 5 && ollama pull $BASE_MODEL && ollama pull $EMBEDDING_MODEL && ollama create intentClassifier -f $C3_PATH && ollama create C3 -f $INTENT_CLASSIFIER_PATH
 # Start Ollama
 ENTRYPOINT ["ollama", "serve"]
