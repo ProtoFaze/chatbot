@@ -27,13 +27,12 @@ def setup_ollama():
         case "google cloud":
             ollama_url = os.environ["OLLAMA_API_URL"]
             token = google.oauth2.id_token.fetch_id_token(request=auth_req(), audience=ollama_url)
+            headers = {"Authorization": f"Bearer {token}"}
             ollama_client = ollama.Client(
-                host=ollama_url,
-                headers = {
-                    "Authorization": f"Bearer {token}"
-                    }
+                host = ollama_url,
+                headers = headers
                 )
-            Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text',base_url=os.environ["OLLAMA_API_URL"],headers={"Authorization": f"Bearer {token}"})
+            Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text',base_url=ollama_url,headers=headers)
     return ollama_client
 
 def setup_mongo():
@@ -54,7 +53,7 @@ def setup_mongo():
     retriever = VectorIndexRetriever(index=vector_index, similarity_top_k=3)
     st.session_state['retriever'] = retriever
     st.write("MongoDB connection established")
-    ids = mongo_client[os.environ["MONGODB_DB"]]['chat_history'].find({}, {"_id": 1})
+    ids = mongo_client[os.environ["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1})
     id_list = [str(doc['_id']) for doc in ids]
     st.session_state['id_list'] = id_list
     unique_id = oid().__str__()
@@ -72,10 +71,10 @@ does not answer quwstions about the chat agent"""
         retriever = st.session_state['retriever']
         for node in retriever.retrieve(question):
             context.append(node.text)
-    messages = [{'role': 'user', 'content':f"""fullfill the query with the provided information
+    messages =  st.session_state['messages']+{'role': 'user', 'content':f"""fullfill the query with the provided information
 Do not include greetings or thanks for providing relevant information
 Query      :{question}
-Information:{context}"""}]
+Information:{context}"""}
     return ollama_client.chat(
             model=st.session_state['model'],
             messages=messages,
@@ -134,11 +133,13 @@ def chat(user_input: str):
                 messages = messages,
                 stream = True)
         case _:
-            return ollama_client.chat(
-                model = st.session_state['model'],
-                messages = [{"role":"user", 
-                            "content":user_input}],
-                stream = True)
+            with st.spinner("fetching default response"):
+                st.write('default')
+                return ollama_client.chat(
+                    model = st.session_state['model'],
+                    messages = [{"role":"user", 
+                                "content":user_input}],
+                    stream = True)
 
 st.set_page_config(
         page_title="Chat about GMBIS",
@@ -189,7 +190,6 @@ with st.sidebar:
             else:
                 st.write(f"{message['role']}: {message['content']}")
     setup_mongo()
-    st.write(st.session_state.items())
 
 for message in st.session_state['messages']:
     if message["role"] == "system":
@@ -213,12 +213,7 @@ if prompt := st.chat_input("How can I help?"):
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
     
-    st.write(st.session_state['session_id'] in st.session_state['id_list'])
-    st.write(st.session_state['id_list'])
     if st.session_state['session_id'] in st.session_state['id_list']:
-        st.write("updating")
-        st.session_state['mongo_client'][os.environ["MONGODB_DB"]]['chat_history'].update_one({ '_id': oid(st.session_state['session_id']) },
-                                                                                         { '$set': { 'chatlog': st.session_state['messages'] } })
+        st.session_state['mongo_client'][os.environ["MONGODB_DB"]]['chat_session'].update_one({'_id': oid(st.session_state['session_id'])},{'$set': {'chatlog': st.session_state['messages']}})
     else:
-        st.write("inserting")
-        st.session_state['mongo_client'][os.environ["MONGODB_DB"]]['chat_history'].insert_one({ '_id': oid(st.session_state['session_id']), 'chatlog': st.session_state['messages'] })
+        st.session_state['mongo_client'][os.environ["MONGODB_DB"]]['chat_session'].insert_one({'_id': oid(st.session_state['session_id']) , 'chatlog': st.session_state['messages']})
