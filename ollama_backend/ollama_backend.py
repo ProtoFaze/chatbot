@@ -7,18 +7,19 @@ import time
 # Setup the model store volume to avoid repeated downloads.
 volume = modal.Volume.from_name("ollama-store", create_if_missing=True)
 model_store_path = "/vol/models"
+mount = modal.Mount.from_local_dir(local_path='modelfiles', remote_path="modelfiles")
 
-images = {
-    "ollama": modal.Image.debian_slim()
+image = (modal.Image
+        .debian_slim()
         .apt_install("curl")
         .run_commands("curl -fsSL https://ollama.com/install.sh | sh")
         .run_commands("apt remove -y curl")
         .pip_install("ollama")
         .env({'OLLAMA_MODELS': model_store_path})
-    # "api": modal.Image.debian_slim()
         .pip_install("fastapi[standard]")
         .pip_install("pydantic")
-}
+        .run_function(init_and_setup))
+
 
 app = modal.App(
     name="modal-ollama"
@@ -49,7 +50,6 @@ class Ollama:
         print("Starting server")
         serve_ollama()
 
-    
     @modal.method()
     def warmup(self):
         """Warmup the model."""
@@ -60,10 +60,6 @@ class Ollama:
     def list(self):
         models =[model['model'].split(':')[0] for model in ollama.list().models]
         return models if models else print("No models found")
-
-    @modal.method()
-    def create(self, model, path):
-        return ollama.create(model=model, path=path)
 
     @modal.method()
     def chat(self, messages):
@@ -77,28 +73,41 @@ class Ollama:
         """Generate a response from the given user prompt."""
         for chunk in ollama.generate(model=self.model, prompt=prompt, stream=True):
             yield chunk['response']
+            print(f"Generated: {chunk['response']}")
 
-    
-    
-@app.function(volumes={model_store_path: volume}, timeout=60 * 30, image=images["ollama"])
+@app.function(volumes={model_store_path: volume}, timeout=60 * 30, image=image)
 def model_download(repo_id: str):
     """Download the model from the Ollama server."""
     serve_ollama()
     time.sleep(1)
     print('pulling from ollama')
-    ollama.pull(repo_id)
+    ollama.create(repo_id)
+    volume.commit()
+
+@app.function(volumes={model_store_path: volume}, mounts=[mount], timeout=60 * 30, image=image)
+def model_create(model_name: str):
+    """Download the model from the Ollama server."""
+    import os
+    serve_ollama()
+    time.sleep(1)
+    print('creating new model')
+    path = '/modelfiles/'+model_name
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Model file for {model_name} not found in {path}")
+    #use local paths from mounted local directory
+    ollama.create(model=model_name, path=path)
     volume.commit()
 
 @app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=images["ollama"])
 @modal.web_endpoint(method="POST", label="chat")
-def chat(payload: Payload):
+async def chat(payload: Payload):
     """Handle chat interaction and stream the response."""
     model = Ollama(model=payload.model)
-    return StreamingResponse(model.chat.remote_gen(payload.messages), media_type="application/json")
+    return StreamingResponse(model.chat.remote_gen(payload.messages), media_type="text/event-stream")
 
 @app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=images["ollama"])
 @modal.web_endpoint(method="POST", label="generate")
-def generate(payload: Payload):
+async def generate(payload: Payload):
     """Generate a response from the given user prompt."""
     model = Ollama(model=payload.model)
     return StreamingResponse(model.generate.remote_gen(payload.prompt), media_type="text/event-stream")
@@ -110,23 +119,33 @@ def warmup(payload: Payload):
     model = Ollama(model=payload.model)
     return model.warmup()
 
-if __name__ == "__main__":
-    with app.run():    
-        baseModel = "llama3.2"
-        client = Ollama(model=baseModel)
-        defaults = {
-            "baseModel": baseModel,
-            "embedModel": "nomic-embed-text", 
-        }
-        downloaded_models = client.list.remote()
-        for key in defaults.keys():
-            model_name = defaults[key]
-            if model_name in downloaded_models:
-                print(f"{model_name} already downloaded")
-            else:
-                print(f"{model_name} does not exist, downloading")
-                model_download.remote(model_name)
-        print('Server initialized and running')
 
-        
-        
+@app.local_entrypoint()
+def init_and_setup():
+    '''Initialize the server and download the models on deployment'''
+    baseModel = "llama3.2"
+    client = Ollama(model=baseModel)
+    downloaded_models = client.list.remote()
+
+    defaults = {
+        "baseModel": baseModel,
+        "embedModel": "nomic-embed-text", 
+    }
+    for key in defaults.keys():
+        model_name = defaults[key]
+        if model_name in downloaded_models:
+            print(f"{model_name} already downloaded")
+        else:
+            print(f"{model_name} does not exist, downloading")
+            model_download.remote(model_name)
+    print('base models downloaded')
+    derivatives = {
+        "chatbotModel":"C3",
+        "intentClassifier":"intentClassifier"
+    }
+    for key in derivatives.keys():
+        model_name = derivatives[key]
+        print(f"updating {model_name} with latest configs from file")
+        model_create.remote(model_name)
+    print('derived models created')
+    print('Server initialized and running')
