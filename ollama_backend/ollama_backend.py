@@ -9,7 +9,8 @@ volume = modal.Volume.from_name("ollama-store", create_if_missing=True)
 model_store_path = "/vol/models"
 mount = modal.Mount.from_local_dir(local_path='modelfiles', remote_path="modelfiles")
 
-image = (modal.Image
+image = (
+    modal.Image
         .debian_slim()
         .apt_install("curl")
         .run_commands("curl -fsSL https://ollama.com/install.sh | sh")
@@ -18,7 +19,7 @@ image = (modal.Image
         .env({'OLLAMA_MODELS': model_store_path})
         .pip_install("fastapi[standard]")
         .pip_install("pydantic")
-        .run_function(init_and_setup))
+)
 
 
 app = modal.App(
@@ -38,7 +39,7 @@ class Payload(BaseModel):
     gpu='T4',
     allow_concurrent_inputs=10,
     volumes={model_store_path: volume},
-    image=images["ollama"],
+    image=image,
     container_idle_timeout=60,
 )
 class Ollama:
@@ -98,21 +99,21 @@ def model_create(model_name: str):
     ollama.create(model=model_name, path=path)
     volume.commit()
 
-@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=images["ollama"])
+@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=image)
 @modal.web_endpoint(method="POST", label="chat")
 async def chat(payload: Payload):
     """Handle chat interaction and stream the response."""
     model = Ollama(model=payload.model)
     return StreamingResponse(model.chat.remote_gen(payload.messages), media_type="text/event-stream")
 
-@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=images["ollama"])
+@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=image)
 @modal.web_endpoint(method="POST", label="generate")
 async def generate(payload: Payload):
     """Generate a response from the given user prompt."""
     model = Ollama(model=payload.model)
     return StreamingResponse(model.generate.remote_gen(payload.prompt), media_type="text/event-stream")
 
-@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=images["ollama"])
+@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=image)
 @modal.web_endpoint(method="POST", label="warmup")
 def warmup(payload: Payload):
     """Warmup the model."""
