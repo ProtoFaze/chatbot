@@ -1,60 +1,57 @@
+import json
+import requests
+import ollama
 import modal
 import subprocess
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-import ollama
-import time
+from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import FastAPI, Request
+from typing import Iterator, Union
+
+app = FastAPI()
+
 # Setup the model store volume to avoid repeated downloads.
 volume = modal.Volume.from_name("ollama-store", create_if_missing=True)
 model_store_path = "/vol/models"
 #mount the local directory storing our ollama model filesto the remote volume
 mount = modal.Mount.from_local_dir(local_path='modelfiles', remote_path="modelfiles")
-image = (
-    modal.Image
+
+def serve_ollama():
+    """Ensure Ollama server is running."""
+    subprocess.Popen(["ollama", "serve"])
+
+image = (modal.Image
         .debian_slim()
         .apt_install("curl")
         .run_commands("curl -fsSL https://ollama.com/install.sh | sh")
         .run_commands("apt remove -y curl")
         .pip_install("ollama")
         .env({'OLLAMA_MODELS': model_store_path})
-        .pip_install("fastapi[standard]",
-                     "pydantic")
+        .pip_install("fastapi[standard]","pydantic",'requests')
+        .run_function(serve_ollama)
 )
 
 web_app = FastAPI()
-
-app = modal.App(
-    name="modal-ollama" 
-)
-
-def serve_ollama():
-    """Ensure Ollama server is running."""
-    subprocess.Popen(["ollama", "serve"])
-
-class Payload(BaseModel):
-    '''The http request payload'''
-    model: str
-    messages: list = []
-    prompt: str = ""
-    stream: bool = True
+app = modal.App(name="llama_ptfz")
 
 @app.cls(
     gpu='T4',
     allow_concurrent_inputs=10,
     volumes={model_store_path: volume},
     image=image,
+    mounts=[mount],
     container_idle_timeout=60,
 )
 class Ollama:
-    '''Ollama class for handling chat, generation as well as vector store retrieval via llamaindex'''
-    model: str = modal.parameter(init=True)
+    '''Ollama class for handling calls to the endpoint'''
+    # model: str = modal.parameter(init=True)
+    BASE_URL: str = "http://localhost:11434"
+    
     @modal.enter()
     def init_model(self):
         """Start the Ollama server."""
         print("Starting server")
         serve_ollama()
-
+        
     @modal.method()
     def warmup(self):
         """Warmup the model."""
@@ -62,94 +59,254 @@ class Ollama:
         return {"status": "ok"}
 
     @modal.method()
-    def list(self):
-        models =[model['model'].split(':')[0] for model in ollama.list().models]
-        return models if models else print("No models found")
-
-    @modal.method()
-    def chat(self, messages: list, stream=True):
+    async def chat(self, model: str, messages: list, tools: list = [], stream=True, **kwargs):
         """Handle chat interaction and stream the response."""
-        stream = ollama.chat(model = self.model, messages = messages, stream = stream)
-        for chunk in stream:
-            yield chunk['message']['content']
+        payload = {"model":model,"messages":messages,"tools":tools,"stream":stream, **kwargs}
+        response = requests.post(self.BASE_URL+"/api/chat", json=payload, stream=stream)
+        if stream:
+            print("Streaming")
+            for chunk in response.iter_lines():
+                yield chunk+b"\n"
+        elif response is not None:
+            print("Not streaming")
+            print(response.content)
+            yield json.loads(response.content)
+    
+    @modal.method()
+    def generate(self, model: str, prompt: str, stream=True, **kwargs):
+        """Generate a response from the given user prompt."""
+        payload = {"model":model,"prompt":prompt,"stream":stream, **kwargs}
+        response = requests.post(self.BASE_URL+"/api/generate", json=payload, stream=stream)
+        if stream:
+            print("Streaming")
+            for chunk in response.iter_lines():
+                yield chunk+b"\n"
+        elif response is not None:
+            print("Not streaming")
+            yield json.loads(response.content)
 
     @modal.method()
-    def generate(self, prompt: str, stream=True):
-        """Generate a response from the given user prompt."""
-        for chunk in ollama.generate(model = self.model, prompt = prompt, stream = stream):
-            yield chunk['response']
-            print(f"Generated: {chunk['response']}")
+    def embed(self, model: str, input: str, **kwargs):
+        """Embed a given text."""
+        payload = {"model":model,"input":input, **kwargs}
+        response = requests.post(self.BASE_URL+"/api/embed", json=payload)
+        embeddings = json.loads(response.content).get("embeddings")
+        print("returned embeddings")
+        print(embeddings)
+        print(len(embeddings[0]))
+        return json.loads(response.content)
 
-@app.function(volumes={model_store_path: volume}, timeout=60 * 30, image=image)
-def model_download(repo_id: str):
-    """Download the model from the Ollama server."""
-    serve_ollama()
-    time.sleep(1)
-    print('pulling from ollama')
-    ollama.create(repo_id)
-    volume.commit()
+    @modal.method()
+    def embeddings(self, model: str, prompt: str, **kwargs):
+        """Embed a given text."""
+        payload = {"model":model,"prompt":prompt, **kwargs}
+        print("payload \\|/")
+        print(payload)
+        response = requests.post(self.BASE_URL+"/api/embeddings", json=payload)
+        embeddings = json.loads(response.content)
+        print("returned embeddings")
+        print(embeddings)
+        print(len(embeddings))
+        return json.loads(response.content)
 
-@app.function(volumes={model_store_path: volume}, mounts=[mount], timeout=60 * 30, image=image)
-def model_create(model_name: str):
-    """Download the model from the Ollama server."""
-    import os
-    serve_ollama()
-    time.sleep(1)
-    print('creating new model')
-    path = '/modelfiles/'+model_name
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Model file for {model_name} not found in {path}")
-    #use local paths from mounted local directory
-    ollama.create(model=model_name, path=path)
-    volume.commit()
+    @modal.method()
+    def list(self):
+        models = requests.get(self.BASE_URL+"/api/tags")
+        print(models.content)
+        return json.loads(models.content) if models else b'[]'
+    
+    @modal.method()
+    def list_running(self):
+        """List all running models."""
+        models = requests.get(self.BASE_URL+"/api/ps")
+        print(models.content)
+        return json.loads(models.content) if models else b'[]'
 
-@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=image)
-@modal.web_endpoint(method="POST", label="chat")
-async def chat(payload: Payload):
-    """Handle chat interaction and stream the response."""
-    model = Ollama(model=payload.model)
-    return StreamingResponse(model.chat.remote_gen(payload.messages), media_type="text/event-stream")
+    @modal.method()
+    def pull(self, model: str, stream = True, **kwargs):
+        """Pull a model from the model store."""
+        payload = {"model":model, "stream":stream, **kwargs}
+        response = requests.post(self.BASE_URL+"/api/pull", json=payload, stream=stream)
+        if stream:
+            for chunk in response.iter_lines():
+                yield chunk+b"\n"
+        elif response is not None:
+            yield json.loads(response.content)
 
-@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=image)
-@modal.web_endpoint(method="POST", label="generate")
-async def generate(payload: Payload):
-    """Generate a response from the given user prompt."""
-    model = Ollama(model=payload.model)
-    return StreamingResponse(model.generate.remote_gen(payload.prompt), media_type="text/event-stream")
+    @modal.method()
+    def create(self, model:str, modelfile: str = None, path: str = None, stream = True, **kwargs):
+        """Create a new model."""
+        payload = {"model":model, "modelfile":modelfile, "path":path, "stream":stream, **kwargs}
+        response = requests.post(self.BASE_URL+"/api/create", json=payload, stream=stream)
+        if stream:
+            for chunk in response.iter_lines():
+                yield chunk+b"\n"
+        elif response is not None:
+            yield json.loads(response.content)
 
-@app.function(volumes={model_store_path: volume}, allow_concurrent_inputs=1000, image=image)
-@modal.web_endpoint(method="POST", label="warmup")
-def warmup(payload: Payload):
-    """Warmup the model."""
-    model = Ollama(model=payload.model)
-    return model.warmup()
+@web_app.post("/api/chat")
+async def chat(request: Request):
+    '''abstraction layer to receive and redirect the request to an instantiated ollama client's chat completion endpoint'''
+    ollama = Ollama()
+    params = await request.json()
+    stream = params.get("stream", True)
+    if stream:
+        print("using streamRes")
+        return StreamingResponse(ollama.chat.remote_gen(**params), media_type="application/x-ndjson")
+    else:
+        print("using JSONRes")
+        response = list(ollama.chat.remote_gen(**params))[0]
+        print(type(response))
+        print(f"after dict conversion {response}")
+        return JSONResponse(content=response)
+
+@web_app.post("/api/generate")
+async def generate(request: Request):
+    '''abstraction layer to receive and redirect the request to an instantiated ollama client's normal completion endpoint'''
+    ollama = Ollama()
+    params = await request.json()
+    stream = params.get("stream", True)
+    if stream:
+        print("using streamRes")
+        return StreamingResponse(ollama.generate.remote_gen(**params), media_type="application/x-ndjson")
+    else:
+        print("using JSONRes")
+        response = list(ollama.generate.remote_gen(**params))[0]
+        print(type(response))
+        print(f"after dict conversion {response}")
+        return JSONResponse(content=response)
+
+@web_app.post("/api/embed")
+async def embed(request: Request):
+    '''Get vector embeddings for given text'''
+    print("vectorizing text")
+    params = await request.json()
+    res = Ollama().embed.remote(**params)
+    return JSONResponse(content=res)
+
+@web_app.post("/api/embeddings")
+async def embed(request: Request):
+    '''DEPRECATED--Get vector embeddings for given text, use /api/embed instead, only maintained for backwards compatibility with llamaParse'''
+    print("vectorizing text")
+    params = await request.json()
+    res = Ollama().embeddings.remote(**params)
+    return JSONResponse(content=res)
+
+@web_app.get("/api/tags")
+async def tags():
+    '''Get list of models'''
+    print("Getting list of models")
+    res = Ollama().list.remote()
+    return JSONResponse(content=res)
+
+@web_app.get("/api/ps")
+async def ps():
+    '''Get list of running models'''
+    print("Getting list of models")
+    res = Ollama().list_running.remote()
+    return JSONResponse(content=res)
+
+@web_app.post("/api/pull")
+async def pull(request: Request):
+    '''Pull a model from the model store'''
+    print("Pulling model")
+    ollama = Ollama()
+    params = await request.json()
+    stream = params.get("stream", True)
+    if stream:
+        print("using streamRes")
+        return StreamingResponse(ollama.pull.remote_gen(**params), media_type="application/x-ndjson")
+    else:
+        print("using JSONRes")
+        response = list(ollama.pull.remote_gen(**params))[0]
+        print(type(response))
+        print(f"after dict conversion {response}")
+        return JSONResponse(content=response)
+
+@web_app.post("/api/create")
+async def create(request: Request):
+    '''Create a new model'''
+    print("Creating model")
+    ollama = Ollama()
+    params = await request.json()
+    stream = params.get("stream", True)
+    if stream:
+        print("using streamRes")
+        return StreamingResponse(ollama.create.remote_gen(**params), media_type="application/x-ndjson")
+    else:
+        print("using JSONRes")
+        response = list(ollama.create.remote_gen(**params))[0]
+        print(type(response))
+        print(f"after dict conversion {response}")
+        return JSONResponse(content=response)
+
+@app.function(image=image)
+@modal.asgi_app()
+def fastapi_app():
+    return web_app
 
 @app.local_entrypoint()
 def init_and_setup():
-    '''Initialize the server and download the models on deployment'''
-    baseModel = "llama3.2"
-    client = Ollama(model=baseModel)
-    downloaded_models = client.list.remote()
+    #setup api
+    ollama_client = ollama.Client(host="https://protofaze--llama-ptfz-fastapi-app-dev.modal.run")
 
-    defaults = {
-        "baseModel": baseModel,
-        "embedModel": "nomic-embed-text", 
-    }
-    for key in defaults.keys():
-        model_name = defaults[key]
-        if model_name in downloaded_models:
-            print(f"{model_name} already downloaded")
-        else:
-            print(f"{model_name} does not exist, downloading")
-            model_download.remote(model_name)
-    print('base models downloaded')
-    derivatives = {
-        "chatbotModel":"C3",
-        "intentClassifier":"intentClassifier"
-    }
-    for key in derivatives.keys():
-        model_name = derivatives[key]
-        print(f"updating {model_name} with latest configs from file")
-        model_create.remote(model_name)
-    print('derived models created')
-    print('Server initialized and running')
+    #setup test variables
+    prompt = 'hi'
+    messages = [{'role':'user','content':prompt}]
+    multiturn_messages = messages+[
+                          {"role": "assistant", "content": "Hi, my name is C3 your dedicated assistant for any enquiry about the group multiple benefit insurance plan by great eastern. How can I help you today?"},
+                          {"role": "user", "content": "what can you tell me about the plan"}
+                        ]
+    intentClassifier = 'intentClassifier'
+    llm = 'llama3.2'
+    
+    print("\ntest for non streaming chat completion (structured response)")
+    res = ollama_client.chat(model=intentClassifier,
+                             messages=multiturn_messages,
+                             stream=False,
+                             format='json'
+                             )
+    intent = json.loads(res.get('message').get("content")).get('intent')
+    print(intent)
+
+    print("\ntest for streaming chat completion")
+    res = ollama_client.chat(messages=messages, model=llm, stream=True)
+    for chunk in res:
+        print(chunk.get('message').get("content"), end="", flush=True)
+
+
+    print("\ntest for non streaming normal completion")
+    res = ollama_client.generate(model=llm, prompt=prompt, stream=False)
+    print(res.get('response'))
+    print("\ntest for streaming normal completion")
+    res = ollama_client.generate(model=llm, prompt=prompt, stream=True)
+    for chunk in res:
+        print(chunk.get('response'), end="", flush=True)
+
+
+    print("\ntest for current embedding function")
+    embedder = "nomic-embed-text"
+    embedding = ollama_client.embed(model=embedder,input="hi")
+    print(embedding.get('embeddings'))
+    print("\ntest for legacy embedding function")
+    embedder = "nomic-embed-text"
+    embedding = ollama_client.embeddings(model=embedder,prompt="hi")
+    print(embedding.get('embedding'))
+
+    
+    print("\ntest fetching for model list")
+    for model in ollama_client.list().get('models'):
+        print(model.get('model'))
+    print("\ntest fetching for running model list")
+    for model in ollama_client.ps().get('models'):
+        print(model.get('model'))
+
+    
+    print("\ntest pulling a model")
+    model = "llama3.2"
+    for progress in ollama_client.pull(model=model, stream=True):
+        print(progress)
+    print("\ntest creating a model")
+    model = "C3"
+    for progress in ollama_client.create(model=model, path='modelfiles/C3',stream=True):
+        print(progress.status)
