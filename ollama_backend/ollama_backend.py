@@ -1,5 +1,6 @@
 import modal
 import subprocess
+from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import ollama
@@ -7,8 +8,8 @@ import time
 # Setup the model store volume to avoid repeated downloads.
 volume = modal.Volume.from_name("ollama-store", create_if_missing=True)
 model_store_path = "/vol/models"
+#mount the local directory storing our ollama model filesto the remote volume
 mount = modal.Mount.from_local_dir(local_path='modelfiles', remote_path="modelfiles")
-
 image = (
     modal.Image
         .debian_slim()
@@ -17,13 +18,14 @@ image = (
         .run_commands("apt remove -y curl")
         .pip_install("ollama")
         .env({'OLLAMA_MODELS': model_store_path})
-        .pip_install("fastapi[standard]")
-        .pip_install("pydantic")
+        .pip_install("fastapi[standard]",
+                     "pydantic")
 )
 
+web_app = FastAPI()
 
 app = modal.App(
-    name="modal-ollama"
+    name="modal-ollama" 
 )
 
 def serve_ollama():
@@ -31,9 +33,11 @@ def serve_ollama():
     subprocess.Popen(["ollama", "serve"])
 
 class Payload(BaseModel):
+    '''The http request payload'''
     model: str
     messages: list = []
     prompt: str = ""
+    stream: bool = True
 
 @app.cls(
     gpu='T4',
@@ -43,8 +47,8 @@ class Payload(BaseModel):
     container_idle_timeout=60,
 )
 class Ollama:
+    '''Ollama class for handling chat, generation as well as vector store retrieval via llamaindex'''
     model: str = modal.parameter(init=True)
-
     @modal.enter()
     def init_model(self):
         """Start the Ollama server."""
@@ -63,16 +67,16 @@ class Ollama:
         return models if models else print("No models found")
 
     @modal.method()
-    def chat(self, messages):
+    def chat(self, messages: list, stream=True):
         """Handle chat interaction and stream the response."""
-        stream = ollama.chat(self.model, messages, stream=True)
+        stream = ollama.chat(model = self.model, messages = messages, stream = stream)
         for chunk in stream:
             yield chunk['message']['content']
 
     @modal.method()
-    def generate(self, prompt):
+    def generate(self, prompt: str, stream=True):
         """Generate a response from the given user prompt."""
-        for chunk in ollama.generate(model=self.model, prompt=prompt, stream=True):
+        for chunk in ollama.generate(model = self.model, prompt = prompt, stream = stream):
             yield chunk['response']
             print(f"Generated: {chunk['response']}")
 
@@ -119,7 +123,6 @@ def warmup(payload: Payload):
     """Warmup the model."""
     model = Ollama(model=payload.model)
     return model.warmup()
-
 
 @app.local_entrypoint()
 def init_and_setup():
