@@ -8,24 +8,27 @@ from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.core import Settings, VectorStoreIndex
 import os
 from bson.objectid import ObjectId as oid 
-
+import json
 from dotenv import load_dotenv
 load_dotenv()
 
 from pymongo import MongoClient
 
+def initialize_messages():
+    st.session_state['messages'] = []
+    
 # setup connections
 
 #connection to ollama API
 def setup_ollama():
-    connection_type = st.selectbox("Select your ollama connection type", ["localhost", "google cloud"], placeholder="localhost")
+    connection_type = st.selectbox("Select your ollama connection type", ["localhost", "google cloud", 'modal'], placeholder="localhost")
     ollama_client = None
     match connection_type:
         case "localhost":
             ollama_client = ollama
             Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text')
         case "google cloud":
-            ollama_url = os.environ["OLLAMA_API_URL"]
+            ollama_url = os.environ["GOOGLE_OLLAMA_API_URL"]
             token = google.oauth2.id_token.fetch_id_token(request=auth_req(), audience=ollama_url)
             headers = {"Authorization": f"Bearer {token}"}
             ollama_client = ollama.Client(
@@ -33,6 +36,10 @@ def setup_ollama():
                 headers = headers
                 )
             Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text',base_url=ollama_url,headers=headers)
+        case 'modal':
+            ollama_url = os.environ["MODAL_OLLAMA_API_URL"]
+            ollama_client = ollama.Client(host=ollama_url)
+            Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text', base_url=ollama_url)
     return ollama_client
 
 def setup_mongo():
@@ -61,8 +68,6 @@ def setup_mongo():
         st.session_state['session_id'] = unique_id
         st.session_state['id_list'].append(unique_id)
 
-
-
 def get_context(question: str, verbose: bool = False) -> list:
     """Retrieves text-based information for an insurance product only based on the user query.
 does not answer quwstions about the chat agent"""
@@ -71,10 +76,10 @@ does not answer quwstions about the chat agent"""
         retriever = st.session_state['retriever']
         for node in retriever.retrieve(question):
             context.append(node.text)
-    messages =  st.session_state['messages']+{'role': 'user', 'content':f"""fullfill the query with the provided information
+    messages =  st.session_state['messages'][-3:]+[{'role': 'user', 'content':f"""fullfill the query with the provided information
 Do not include greetings or thanks for providing relevant information
 Query      :{question}
-Information:{context}"""}
+Information:{context}"""}]
     return ollama_client.chat(
             model=st.session_state['model'],
             messages=messages,
@@ -86,20 +91,22 @@ def classify_intent(user_input:str) -> str:
     """classify the intent of the user input
 current implementation uses a lightweight model (llama3.2)
 with chain of thought prompting examples
-for classifying 'normal', 'register', 'RAG' intents
+for classifying 'normal', 'register', 'rag' intents
 """
-    return ollama_client.chat(
+    response = ollama_client.chat(
             model = "intentClassifier",
             messages = [{"role":"user", "content":user_input}],
-            stream = False
+            stream = False,
+            format='json'
         )['message']['content']
+    intent = json.loads(response)['intent']
+    intent
+    return intent
 
 def chat(user_input: str):
     intent = None
     with st.spinner("detecting intent..."):
-        #substring the last word from classify_intent and remove any trailing symbols
-        intent_response = classify_intent(user_input)
-        intent = intent_response.split()[-1].strip('.,!?')
+        intent = classify_intent(user_input)
     match intent:
         case "rag":
             return get_context(user_input)
@@ -147,10 +154,6 @@ st.set_page_config(
         layout="wide",
         initial_sidebar_state="expanded",
     )
-
-def initialize_messages():
-    st.session_state['messages'] = []
-
 
 def initialize_streamlit_session():
     defaults = {
