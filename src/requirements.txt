@@ -6,4 +6,7 @@ einops
 python-dotenv
 google-auth
 ollama
-"pinecone[grpc]"
+llama-index
+llama-parse
+llama-index-embeddings-ollama
+llama-index-vector-stores-mongodb

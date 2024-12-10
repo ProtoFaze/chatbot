@@ -41,7 +41,7 @@ RAG
 - [ ] model training via unsloth  
 
 # Acknowledgement
-Thanks for sharing these demos  
+Thanks for sharing these demos and blogs  
 using streamlit with ollama for prototyping   
 [demo of streamlit with ollama](https://github.com/tonykipkemboi/ollama_streamlit_demos/blob/main/01_%F0%9F%92%AC_Chat.py)  
 
@@ -51,3 +51,6 @@ using llamaparse with ollama
 
 using ollama as a freemium backend service  
 [run ollama with modal](https://github.com/irfansharif/ollama-modal)
+
+setting up response streaming via fastAPI(compatible with modal labs)
+[FastAPI Streaming Response: Error: Did not receive done or success response in stream](https://kontext.tech/article/1377/fastapi-streaming-response-error-did-not-receive-done-or-success-response-in-stream) 
