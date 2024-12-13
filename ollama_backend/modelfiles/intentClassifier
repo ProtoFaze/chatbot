@@ -5,7 +5,7 @@ PARAMETER temperature 0
 
 # set the system message
 SYSTEM """classify the given input,
-use rag if it is asking about insurance products (e.g., benefits, features, coverage, payments, or suitability of plans),
+use rag if it is asking about insurance products (e.g., benefits, features, coverage, payments, or suitability of plans, introduction to policy or scheme),
 use register if the user explicitly requests assistance or guidance for account creation or signing up (e.g., "how do I register", "help me sign up"),
 use verify if the user expresses concern about legitimacy or fraud of this service,
 otherwise, classify as normal, 
