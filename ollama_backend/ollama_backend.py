@@ -5,6 +5,12 @@ import modal
 import subprocess
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi import FastAPI, Request
+from pydantic  import BaseModel
+from typing import Literal
+
+class IntentModel(BaseModel):
+    reasoning: str
+    intent: Literal["normal","register","rag","verify"]
 
 app = FastAPI()
 
@@ -18,10 +24,16 @@ def serve_ollama():
     '''Ensure Ollama server is running.'''
     subprocess.Popen(["ollama", "serve"])
 
+def ollama_version():
+    '''Get the version of the Ollama server.'''
+    res = subprocess.run(["ollama", "--version"])
+    # print(res)
+    return str(res)
+
 image = (modal.Image
         .debian_slim()
         .apt_install("curl")
-        .run_commands("curl -fsSL https://ollama.com/install.sh | sh")
+        .run_commands("curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.5.1 sh")
         .run_commands("apt remove -y curl")
         .pip_install("ollama")
         .env({'OLLAMA_MODELS': model_store_path})
@@ -49,7 +61,12 @@ class Ollama:
         '''Start the Ollama server.'''
         print("Starting server")
         serve_ollama()
-        
+
+    @modal.method()
+    def version(self):
+        '''Print the version of the Ollama server.'''
+        return ollama_version()
+    
     @modal.method()
     def warmup(self):
         '''Warmup the model.'''
@@ -57,9 +74,15 @@ class Ollama:
         return {"status": "ok"}
 
     @modal.method()
-    async def chat(self, model: str, messages: list, tools: list = [], stream=True, **kwargs):
+    def chat(self, model: str, messages: list, tools: list = [], stream=True, **kwargs):
         '''Handle chat interaction and stream the response.'''
         payload = {"model":model,"messages":messages,"tools":tools,"stream":stream, **kwargs}
+
+        # if 'format' in payload and not isinstance(payload['format'], dict):
+        #     print("formated")
+        #     payload['format'] = json.dumps(payload['format'])
+        print(f'''payload:
+              {payload}''')
         response = requests.post(self.BASE_URL+"/api/chat", json=payload, stream=stream)
         if stream:
             print("Streaming")
@@ -141,6 +164,7 @@ class Ollama:
                 yield chunk+b"\n"
         elif response is not None:
             yield json.loads(response.content)
+
 
 @web_app.post("/api/chat")
 async def chat(request: Request):
@@ -244,15 +268,34 @@ async def create(request: Request):
         print(f"after dict conversion {response}")
         return JSONResponse(content=response)
 
+@web_app.get("/version")
+async def version():
+    '''Get the version of the Ollama server'''
+    print(Ollama().version.remote())
+    res = Ollama().version.remote()
+    return JSONResponse(content=res)
+
 @app.function(image=image)
 @modal.asgi_app()
 def fastapi_app():
     return web_app
 
+
 @app.local_entrypoint()
 def init_and_setup():
     #setup api
     ollama_client = ollama.Client(host="https://protofaze--llama-ptfz-fastapi-app-dev.modal.run")
+
+    print("\npulling models")
+    originalModels = ['llama3.2', 'nomic-embed-text']
+    for model in originalModels:
+        for progress in ollama_client.pull(model=model, stream=True):
+            print(progress)
+    print("\ncreating models")
+    models = ["C3","intentClassifier"]
+    for model in models:
+        for progress in ollama_client.create(model=model, path='modelfiles/'+model,stream=True):
+            print(progress.status)
 
     #setup test variables
     prompt = 'hi'
@@ -268,10 +311,10 @@ def init_and_setup():
     res = ollama_client.chat(model=intentClassifier,
                              messages=multiturn_messages,
                              stream=False,
-                             format='json'
+                             format=IntentModel.model_json_schema()
                              )
-    intent = json.loads(res.get('message').get("content")).get('intent')
-    print(intent)
+    response = IntentModel.model_validate_json(res.message.content)
+    print(response)
 
     print("\ntest for streaming chat completion")
     res = ollama_client.chat(messages=messages, model=llm, stream=True)
@@ -297,20 +340,10 @@ def init_and_setup():
     embedding = ollama_client.embeddings(model=embedder,prompt="hi")
     print(embedding.get('embedding'))
 
-    
+
     print("\ntest fetching for model list")
     for model in ollama_client.list().get('models'):
         print(model.get('model'))
     print("\ntest fetching for running model list")
     for model in ollama_client.ps().get('models'):
         print(model.get('model'))
-
-    
-    print("\ntest pulling a model")
-    model = "llama3.2"
-    for progress in ollama_client.pull(model=model, stream=True):
-        print(progress)
-    print("\ntest creating a model")
-    model = "C3"
-    for progress in ollama_client.create(model=model, path='modelfiles/C3',stream=True):
-        print(progress.status)

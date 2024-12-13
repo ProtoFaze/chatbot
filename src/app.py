@@ -1,24 +1,24 @@
+import os
 import ollama
+import streamlit as st
 import google.oauth2.id_token
 from google.auth.transport.requests import Request as auth_req
-import streamlit as st
 from llama_index.vector_stores.mongodb import MongoDBAtlasVectorSearch
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.core import Settings, VectorStoreIndex
-import os
 from bson.objectid import ObjectId as oid 
-import json
-from dotenv import load_dotenv
-load_dotenv()
-
 from pymongo import MongoClient
+from dotenv import load_dotenv
+
+from IntentModel import IntentModel
+
+load_dotenv()
 
 def initialize_messages():
     st.session_state['messages'] = []
     
 # setup connections
-
 #connection to ollama API
 def setup_ollama():
     connection_type = st.selectbox("Select your ollama connection type", ["localhost", "google cloud", 'modal'], placeholder="localhost")
@@ -97,11 +97,11 @@ for classifying 'normal', 'register', 'rag' intents
             model = "intentClassifier",
             messages = [{"role":"user", "content":user_input}],
             stream = False,
-            format='json'
-        )['message']['content']
-    intent = json.loads(response)['intent']
-    intent
-    return intent
+            format=IntentModel.model_json_schema()
+        )
+    response = IntentModel.model_validate_json(response.message.content)
+    print(response)
+    return response.intent
 
 def chat(user_input: str):
     intent = None
@@ -181,7 +181,7 @@ with st.sidebar:
     st.header("How it works")
     st.write("The RAG chatbot works by embedding user inputs.",
             "The inputs are then used to query a mongodb index.",
-            "The top closest matches are then used to query the relevant documents",
+            "The top closest matches are then used to fetch the relevant document sections",
             "Which is finally used as context for the response generation."
             )
     sl_module_chat()
@@ -211,7 +211,7 @@ if prompt := st.chat_input("How can I help?"):
         response_placeholder = st.empty()
         full_response = ""
         for chunk in chat(prompt):
-            full_response += chunk['message']['content']
+            full_response += chunk.message.content
             response_placeholder.markdown(full_response + "▌")
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
