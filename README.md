@@ -54,3 +54,6 @@ using ollama as a freemium backend service
 
 setting up response streaming via fastAPI(compatible with modal labs)
 [FastAPI Streaming Response: Error: Did not receive done or success response in stream](https://kontext.tech/article/1377/fastapi-streaming-response-error-did-not-receive-done-or-success-response-in-stream) 
+
+using structured outputs on ollama
+[Structured outputs](https://ollama.com/blog/structured-outputs)
