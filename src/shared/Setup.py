@@ -18,7 +18,7 @@ def initialize_streamlit_session():
 
 #connection to ollama API
 def setup_LLM():
-    connection_type = st.selectbox("Select your ollama connection type", ["localhost ollama", 'external ollama'], placeholder="localhost ollama")
+    connection_type = st.selectbox("Select your ollama connection type", ["localhost ollama", 'external ollama'],index=1)
     llm_client = None
     match connection_type:
         case "localhost ollama":
@@ -37,10 +37,6 @@ def setup_LLM():
                 headers = headers
                 )
             Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text',base_url=ollama_url,headers=headers)
-        # case 'external ollama':
-        #     ollama_url = st.session_state.get("EXTERNAL_OLLAMA_API_URL",st.secrets["EXTERNAL_OLLAMA_API_URL"])
-        #     llm_client = ollama.Client(host=ollama_url)
-        #     Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text', base_url=ollama_url)
     st.session_state['llm_client'] = llm_client
     return llm_client
 
