@@ -5,35 +5,12 @@ import datetime
 from shared.Models import Intent
 from shared.Setup import initialize_streamlit_session, setup_LLM, setup_mongo, fetch_chat_ids
 
-# from google.cloud import storage
-# def upload_blob_from_memory(contents, destination_blob_name, bucket_name : str = "gmbis_chatbot_lead_gen_pictures_bucket"):
-#     """Uploads a file to the bucket."""
-
-#     # The ID of your GCS bucket
-#     # bucket_name = "your-bucket-name"
-
-#     # The contents to upload to the file
-#     # contents = "these are my contents"
-
-#     # The ID of your GCS object
-#     # destination_blob_name = "storage-object-name"
-
-#     storage_client = storage.Client()
-#     bucket = storage_client.bucket(bucket_name)
-#     blob = bucket.blob(destination_blob_name)
-
-#     blob.upload_from_string(contents)
-
-#     print(
-#         f"{destination_blob_name} with contents {contents} uploaded to {bucket_name}."
-#     )
-
 def initialize_messages():
     st.session_state['messages'] = []
     
 # setup connections
 
-def get_context(question: str, verbose: bool = False):
+def get_context(question: str):
     """Retrieves text-based information for an insurance product only based on the user query.
 does not answer quwstions about the chat agent"""
     context = []
@@ -136,8 +113,7 @@ Request: {user_input}"""}]
                 messages = [{"role":"user", "content":f"Please answer the given question with the following context:\
                     Question: {user_input}\
                     Context:\
-                    user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties.\
-                    user can obtain verification by emailing this address: damonngkhaiweng@greateasternlife.com"}]
+                    user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties."}]
             return (llm_client.chat(
                 model = st.session_state['MODEL'],
                 messages = messages,
@@ -156,6 +132,7 @@ st.set_page_config(
         page_icon="💬",
         layout="wide",
         initial_sidebar_state="expanded",
+        menu_items={"About": "Chat with the RAG chatbot about the GMBIS insurance scheme\n### How it works  \nThe RAG chatbot works by embedding user inputs.  \nThe inputs are then used to query a mongodb index.  \nThe top closest matches are then used to fetch the relevant document sections,  \nWhich is finally used as context for the response generation."}
     )
 
 def initialize_chat_session():
@@ -175,17 +152,11 @@ def st_module_chat():
 initialize_chat_session()
 
 with st.sidebar:
-    st.header("How it works")
-    st.write("The RAG chatbot works by embedding user inputs.",
-            "The inputs are then used to query a mongodb index.",
-            "The top closest matches are then used to fetch the relevant document sections",
-            "Which is finally used as context for the response generation."
-            )
+    llm_client = setup_LLM()
     st.page_link(icon=":material/campaign:",
                  label=":orange[link to product]",
                  page='https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
-    llm_client = setup_LLM()
     st_module_chat()    
     setup_mongo()
     fetch_chat_ids()
@@ -215,14 +186,14 @@ if prompt := st.chat_input("How can I help?"):
     st.session_state.messages.append({"role": "assistant", "content": full_response, "detected_user_intent": intent})
     interactions = (len(st.session_state['messages'])/2)
     if st.session_state['session_id'] in st.session_state['id_list']:
-        st.session_state['mongo_client'][st.secrets["MONGODB_DB"]]['chat_session'].update_one({'_id': oid(st.session_state['session_id'])},
+        st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].update_one({'_id': oid(st.session_state['session_id'])},
                                                                                               {'$set':
                                                                                                 {'chatlog': st.session_state['messages'],
                                                                                                  'interactions': interactions,
                                                                                                  'updated_on': datetime.datetime.now(),
                                                                                                 }})
     else:
-        st.session_state['mongo_client'][st.secrets["MONGODB_DB"]]['chat_session'].insert_one({'_id': oid(st.session_state['session_id']), 
+        st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].insert_one({'_id': oid(st.session_state['session_id']), 
                                                                                                'chatlog': st.session_state['messages'],
                                                                                                'interactions': interactions,
                                                                                                'created_on': datetime.datetime.now(),
