@@ -33,7 +33,7 @@ def ollama_version():
 image = (modal.Image
         .debian_slim()
         .apt_install("curl")
-        .run_commands("curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.5.1 sh")
+        .run_commands("curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.5.4 sh")
         .run_commands("apt remove -y curl")
         .pip_install("ollama")
         .env({'OLLAMA_MODELS': model_store_path})
