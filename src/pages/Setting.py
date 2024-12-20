@@ -1,12 +1,12 @@
 import streamlit as st
 from shared.Setup import initialize_streamlit_session
-
+st.set_page_config(page_title="Settings", page_icon=":material/settings:",layout="wide")
 initialize_streamlit_session()
 
 def change_variable(environment_variable: str, new_value: str):
     """Update session state with new endpoint or notify if no changes."""
     default_value = st.secrets.get(environment_variable, "default_value")
-    if new_value == "default" or new_value == default_value:
+    if new_value == "" or new_value == default_value:
         st.warning(f"No changes made to {environment_variable.lower().replace('_',' ')}.")
     else:
         st.session_state[environment_variable] = new_value
@@ -50,8 +50,10 @@ def total_reset_warning():
 
 def setup_text_field(key: str, label: str, type:str = 'default') -> str:
     """Create a text input with a default value as well as its, submit, reset to default buttons and message box."""
-    new_field = st.text_input(label='Specify your '+label, type=type, value=display_values[key])
-    msg_box = st.container(key=key+'_msg_box')
+    new_field = st.text_input(label='Specify your '+label,
+                              type=type,
+                              value=('' if display_values[key] == 'default' else display_values[key]),
+                              placeholder=(display_values[key] if 'admin' not in key.lower() else 'your password'))
 
     left, right = st.columns(2)  # Add buttons in a row
     if left.button("Change "+label, use_container_width=True):
@@ -60,7 +62,7 @@ def setup_text_field(key: str, label: str, type:str = 'default') -> str:
         else:
             is_all_changed = True
             for identifier in display_values:
-                if display_values[identifier] == "default" and 'admin' not in identifier.lower():
+                if display_values[identifier] == "" and 'admin' not in identifier.lower():
                     is_all_changed = False
                     break
             if is_all_changed:
@@ -73,7 +75,7 @@ def setup_text_field(key: str, label: str, type:str = 'default') -> str:
         else:
             is_all_default = True
             for identifier in display_values:
-                if display_values[identifier] != "default":
+                if display_values[identifier] != "":
                     is_all_default = False
                     break
             if is_all_default:
@@ -95,5 +97,3 @@ setup_text_field("MONGODB_RAG_COLLECTION", "RAG collection")
 st.subheader("admin password")
 setup_text_field("ADMIN_PASSWORD", "admin password", "password")
 
-# Display current session state for debugging
-st.write("Current session state:", st.session_state)
