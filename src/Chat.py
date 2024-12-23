@@ -1,15 +1,21 @@
 import streamlit as st
 from bson.objectid import ObjectId as oid 
 import datetime
-
 from shared.Models import Intent
-from shared.Setup import initialize_streamlit_session, setup_LLM, setup_mongo, fetch_chat_ids
+from shared.Setup import initialize_streamlit_session, setup_LLM, setup_mongo, fetch_chat_ids, login
+
+st.set_page_config(
+        page_title="Chat about GMBIS",
+        page_icon="💬",
+        layout="wide",
+        initial_sidebar_state="expanded",
+        menu_items={"About": "Chat with the RAG chatbot about the GMBIS insurance scheme\n### How it works  \nThe RAG chatbot works by embedding user inputs.  \nThe inputs are then used to query a mongodb index.  \nThe top closest matches are then used to fetch the relevant document sections,  \nWhich is finally used as context for the response generation."}
+    )
 
 def initialize_messages():
     st.session_state['messages'] = []
     
 # setup connections
-
 def get_context(question: str):
     """Retrieves text-based information for an insurance product only based on the user query.
 does not answer quwstions about the chat agent"""
@@ -127,14 +133,6 @@ Request: {user_input}"""}]
                                 "content":user_input}],
                     stream = True), intent)
 
-st.set_page_config(
-        page_title="Chat about GMBIS",
-        page_icon="💬",
-        layout="wide",
-        initial_sidebar_state="expanded",
-        menu_items={"About": "Chat with the RAG chatbot about the GMBIS insurance scheme\n### How it works  \nThe RAG chatbot works by embedding user inputs.  \nThe inputs are then used to query a mongodb index.  \nThe top closest matches are then used to fetch the relevant document sections,  \nWhich is finally used as context for the response generation."}
-    )
-
 def initialize_chat_session():
     initialize_streamlit_session()
     
@@ -151,9 +149,14 @@ def st_module_chat():
 ### Streamlit app
 initialize_chat_session()
 
+if not st.session_state.get("IS_ADMIN", False):
+    st.sidebar.subheader("Admin Login")
+    password = st.sidebar.text_input("password", type="password")
+    st.sidebar.button("Login", on_click=login(password))
+
 with st.sidebar:
     llm_client = setup_LLM()
-    st.page_link(icon=":material/campaign:",
+    st.page_link(icon="📣",
                  label=":orange[link to product]",
                  page='https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
@@ -199,3 +202,6 @@ if prompt := st.chat_input("How can I help?"):
                                                                                                'created_on': datetime.datetime.now(),
                                                                                                'updated_on': None,
                                                                                                })
+
+
+

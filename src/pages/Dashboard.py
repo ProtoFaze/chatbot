@@ -1,9 +1,9 @@
 import datetime
 import streamlit as st
-from shared.Setup import setup_LLM, setup_mongo, initialize_streamlit_session
+from shared.Setup import setup_LLM, setup_mongo, initialize_streamlit_session, login
 from shared.Models import AnalysisResults
 initialize_streamlit_session()
-st.set_page_config(page_title="Dashboard", page_icon=":material/dashboard:",layout="wide", menu_items={"about":"#Dashboard with a simple chatlog analysis function ,locked behind admin credentials"})
+st.set_page_config(page_title="Dashboard", page_icon=":bar_chart:",layout="wide", menu_items={"about":"#Dashboard with a simple chatlog analysis function ,locked behind admin credentials"})
 @st.dialog("Chatlog will not be analysed")
 def show_analysis_dialog(chat_record):
     if len(chat_record['chatlog'])>2:
@@ -106,11 +106,8 @@ if st.session_state['IS_ADMIN']:
         display_results("Sign-up Disengagement Reason", getattr(analysis_results, 'disengagement_reason', None))
 
 
-else:
-    def login():
-        st.session_state['IS_ADMIN'] = password == st.session_state['ADMIN_PASSWORD']
-        
+else:   
     with st.sidebar:
         password = st.text_input(label='Enter admin password', type='password')
-        st.button('login', on_click=login())
+        st.button('login', on_click=login(password))
     st.write("Please enter the admin password to view the chatlogs")

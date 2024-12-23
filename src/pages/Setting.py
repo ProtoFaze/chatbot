@@ -1,7 +1,12 @@
 import streamlit as st
-from shared.Setup import initialize_streamlit_session
-st.set_page_config(page_title="Settings", page_icon=":material/settings:",layout="wide")
+from shared.Setup import initialize_streamlit_session, login
+st.set_page_config(page_title="Settings", page_icon=":gear:",layout="wide")
 initialize_streamlit_session()
+
+if not st.session_state.get("IS_ADMIN", False):
+    st.sidebar.subheader("Admin Login")
+    password = st.sidebar.text_input("password", type="password")
+    st.sidebar.button("Login", on_click=login(password))
 
 def change_variable(environment_variable: str, new_value: str):
     """Update session state with new endpoint or notify if no changes."""
@@ -25,12 +30,8 @@ def set_display_value(key_value: str, default_value: str) -> str:
 # Display current values or 'default' as placeholder in textboxes
 display_values = {
     "EXTERNAL_OLLAMA_API_URL": set_display_value("EXTERNAL_OLLAMA_API_URL", "default_value"),
-    "ADMIN_PASSWORD": set_display_value("ADMIN_PASSWORD", "default_value"),
     "EXTERNAL_OLLAMA_API_KEY": set_display_value("EXTERNAL_OLLAMA_API_KEY", "default_value"),
     "GOOGLE_APPLICATION_CREDENTIALS": set_display_value("GOOGLE_APPLICATION_CREDENTIALS", "default_value"),
-    "MONGODB_URI": set_display_value("MONGODB_URI", "default_value"),
-    "MONGODB_DB": set_display_value("MONGODB_DB", "default_value"),
-    "MONGODB_RAG_COLLECTION": set_display_value("MONGODB_RAG_COLLECTION", "default_value"),
     "ADMIN_PASSWORD": set_display_value("ADMIN_PASSWORD", "default_value")
 }
 
@@ -83,17 +84,10 @@ def setup_text_field(key: str, label: str, type:str = 'default') -> str:
             else:
                 total_reset_warning()
 
-
 st.subheader("External Ollama API")
 setup_text_field("EXTERNAL_OLLAMA_API_URL", "external Ollama endpoint")
 setup_text_field("EXTERNAL_OLLAMA_API_KEY", "optional API key")
 setup_text_field("GOOGLE_APPLICATION_CREDENTIALS", "optional Google App Credentials")
 
-st.subheader("MongoDB Settings")
-setup_text_field("MONGODB_URI", "MongoDB URI")
-setup_text_field("MONGODB_DB", "MongoDB database")
-setup_text_field("MONGODB_RAG_COLLECTION", "RAG collection")
-
 st.subheader("admin password")
 setup_text_field("ADMIN_PASSWORD", "admin password", "password")
-
