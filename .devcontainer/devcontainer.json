@@ -18,9 +18,7 @@
     }
   },
   "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f src/requirements.txt ] && pip3 install --user -r src/requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
-  "postAttachCommand": {
-    "server": "streamlit run src/Chat.py --server.enableCORS false --server.enableXsrfProtection false"
-  },
+  "postAttachCommand":  "streamlit run src/Chat.py --server.enableCORS false --server.enableXsrfProtection false",
   "portsAttributes": {
     "8501": {
       "label": "Application",
