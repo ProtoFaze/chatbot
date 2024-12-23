@@ -5,17 +5,19 @@ A simple streamlit app that does RAG
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://chatbot-template.streamlit.app/)
 
 ### How to run it on your own machine
+1. setup your environment secrets, refer to .streamlit/secrets.toml.example
 
-1. Install the requirements
-
-   ```
-   $ pip install -r src/requirements.txt
-   ```
-
-2. Run the app
+2. Install the requirements
 
    ```
-   $ streamlit run src/Chat.py
+   $ cd src
+   $ pip install -r requirements.txt
+   ```
+
+3. Run the app
+
+   ```
+   $ streamlit run Chat.py
    ```
 
 ### How to setup your own remote llm endpoint with ollama and modal labs
@@ -26,24 +28,24 @@ A simple streamlit app that does RAG
 
 2. Pull this repo and redirect to the project directory using the terminal// command line interface
    ```
-   git clone https://github.com/ProtoFaze/chatbot.git   
-   cd chatbot
+   $ git clone https://github.com/ProtoFaze/chatbot.git   
+   $ cd chatbot
    ```
 
 3. Install modal lab's python library using pip.
    ```
-   pip install modal
+   $ pip install modal
    ```
 
 4. Follow the instructions in your browser to authenticate your computer for controlling your modal account
    ```
-   modal setup
+   $ modal setup
    ```
 
 5. Change your directory again to the backend codebase and deploy the server
    ```
-   cd ollama_backend
-   modal deploy ollama_backend.py
+   $ cd ollama_backend
+   $ modal deploy ollama_backend.py
    ```
    Your terminal / command line interface should show a url to access the server
 

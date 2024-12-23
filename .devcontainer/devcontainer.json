@@ -1,7 +1,7 @@
 {
   "name": "Python 3",
-  // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bullseye",
+
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
   "customizations": {
     "codespaces": {
       "openFiles": [
@@ -18,7 +18,7 @@
     }
   },
   "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f src/requirements.txt ] && pip3 install --user -r src/requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
-  "postAttachCommand":  "streamlit run src/Chat.py --server.enableCORS false --server.enableXsrfProtection false",
+  "postAttachCommand":  "cd src && streamlit run Chat.py --server.enableCORS false --server.enableXsrfProtection false",
   "portsAttributes": {
     "8501": {
       "label": "Application",
