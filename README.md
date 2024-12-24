@@ -93,3 +93,6 @@ setting up response streaming via fastAPI(compatible with modal labs)
 
 using structured outputs on ollama  
 [Structured outputs](https://ollama.com/blog/structured-outputs)
+
+sharing how to control page visibility on streamlit  
+[Hide/show pages in multipage app based on conditions](https://discuss.streamlit.io/t/hide-show-pages-in-multipage-app-based-on-conditions/28642)
