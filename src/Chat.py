@@ -2,7 +2,8 @@ import streamlit as st
 from bson.objectid import ObjectId as oid 
 import datetime
 from shared.Models import Intent
-from shared.Setup import initialize_streamlit_session, setup_LLM, setup_mongo, fetch_chat_ids, login
+from shared.Setup import initialize_streamlit_session, setup_LLM, setup_mongo, fetch_chat_ids, setup_admin_pages
+from typing import Literal
 
 st.set_page_config(
         page_title="Chat about GMBIS",
@@ -48,13 +49,13 @@ for classifying 'normal', 'register', 'rag' intents
             format=Intent.model_json_schema()
         )
     response = Intent.model_validate_json(response.message.content)
-    print(f"reasoning:  {response.reasoning}\nintent:   {response.intent}")
     return response.intent
 
-def chat(user_input: str):
-    intent = None
-    with st.spinner("detecting intent..."):
-        intent = classify_intent(user_input)
+def get_response(user_input: str, intent: Literal["normal","register","rag","verify"] = None):
+    print('getting response')
+    if intent is None:
+        with st.spinner("detecting intent..."):
+            intent = classify_intent(user_input)
     match intent:
         case "rag":
             return (get_context(user_input), intent)
@@ -70,7 +71,7 @@ def chat(user_input: str):
                 stream = True), intent)
         case "normal":
             with st.spinner("thinking about what to say"):
-                messages = [{"role":"user", "content":f"""Respond naturally and contextually to suitable work-related requests. For requests that are inappropriate or outside your design, politely decline to address them.
+                messages = st.session_state['messages'][-3:-1]+[{"role":"user", "content":f"""Respond naturally and contextually to suitable work-related requests. For requests that are inappropriate or outside your design, politely decline to address them.
 if the user asks about the insurance product, here is a summary
 summary:
 Group Multiple Benefit Insurance Scheme (GMBIS)
@@ -116,7 +117,7 @@ Request: {user_input}"""}]
                 stream = True), intent)
         case "verify":
             with st.spinner("fetching verification instructions"):
-                messages = [{"role":"user", "content":f"Please answer the given question with the following context:\
+                messages = st.session_state['messages'][-3:-1]+[{"role":"user", "content":f"Please answer the given question with the following context:\
                     Question: {user_input}\
                     Context:\
                     user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties."}]
@@ -139,7 +140,7 @@ def initialize_chat_session():
     if 'messages' not in st.session_state:
         initialize_messages()
 
-st.header('Reference LLM Chatbot implementation using Streamlit and Ollama')
+st.header('Chatbot for the Great Multiple Benefits Insurance Scheme')
 
 def st_module_chat():
     st.header("Chat")
@@ -149,10 +150,7 @@ def st_module_chat():
 ### Streamlit app
 initialize_chat_session()
 
-if not st.session_state.get("IS_ADMIN", False):
-    st.sidebar.subheader("Admin Login")
-    password = st.sidebar.text_input("password", type="password")
-    st.sidebar.button("Login", on_click=login(password))
+setup_admin_pages()
 
 with st.sidebar:
     llm_client = setup_LLM()
@@ -171,8 +169,7 @@ for message in st.session_state['messages']:
     else:
         st.chat_message(message['role']).write(message['content'])
 
-if prompt := st.chat_input("How can I help?"):
-    
+def chat(prompt: str):
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("user"):
@@ -181,7 +178,7 @@ if prompt := st.chat_input("How can I help?"):
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
         full_response = ""
-        generator, intent = chat(prompt)
+        generator, intent = get_response(prompt)
         for chunk in generator:
             full_response += chunk.message.content
             response_placeholder.markdown(full_response + "▌")
@@ -203,5 +200,11 @@ if prompt := st.chat_input("How can I help?"):
                                                                                                'updated_on': None,
                                                                                                })
 
+if prompt := st.chat_input("How can I help?"):
+    chat(prompt)
 
-
+# questions = list(st.session_state['mongo_client'][st.session_state['MONGODB_DB']]['sample_questions'].find({},{'question':1}))
+# columns = st.columns(len(questions))
+# for i, question in enumerate(questions):
+#    if columns[i].button(label=question['question']):
+#        chat(question['question'])
