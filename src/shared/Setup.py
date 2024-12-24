@@ -16,10 +16,19 @@ from streamlit.source_util import (
     get_pages,
     _on_pages_changed
 )
+
+def setup_admin_pages():
+    if not st.session_state.get("IS_ADMIN", False):
+        delete_page("Dashboard")
+        st.sidebar.subheader("Admin Login")
+        password = st.sidebar.text_input("password", type="password")
+        st.sidebar.button("Login", on_click=login(password))
+
 def login(password: str):
     st.session_state['IS_ADMIN'] = password == st.session_state['ADMIN_PASSWORD']
     if st.session_state['IS_ADMIN']:
         add_page('Dashboard')
+        st.rerun()
     else:
         delete_page('Dashboard')
 
@@ -39,7 +48,6 @@ def add_page(page_name: str, main_script_path_str: str = 'Chat'):
     pages = get_pages(main_script_path_str)
     main_script_path = Path(main_script_path_str)
     pages_dir = main_script_path.parent / "pages"
-    st.write(main_script_path.absolute())
     all_scripts = list(pages_dir.glob("*.py")) + list(main_script_path.parent.glob("*.py"))    
     script_files = [f for f in all_scripts if f.name.find(page_name) != -1]
     script_path = script_files[0]
@@ -57,7 +65,7 @@ def add_page(page_name: str, main_script_path_str: str = 'Chat'):
 # Initialize session state with defaults from secrets
 def initialize_streamlit_session():
     for secret_key in st.secrets:
-        if secret_key not in st.session_state:
+        if secret_key not in st.session_state and secret_key not in ['MONGODB_URI']:
             st.session_state[secret_key] = st.secrets[secret_key]
 
 #connection to ollama API
@@ -90,7 +98,7 @@ def setup_mongo():
     st.session_state['mongo_client'] = mongo_client
     vector_store = MongoDBAtlasVectorSearch(
             mongodb_client=mongo_client,
-            db_name = st.secrets["MONGODB_DB"],
+            db_name = st.session_state.get("MONGODB_DB",st.secrets["MONGODB_DB"]),
             collection_name = st.session_state.get("MONGODB_RAG_COLLECTION",st.secrets["MONGODB_RAG_COLLECTION"]),
             vector_index_name = 'vector_index'
         )

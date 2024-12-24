@@ -1,12 +1,9 @@
 import streamlit as st
-from shared.Setup import initialize_streamlit_session, login
+from shared.Setup import initialize_streamlit_session, setup_admin_pages
 st.set_page_config(page_title="Settings", page_icon=":gear:",layout="wide")
 initialize_streamlit_session()
 
-if not st.session_state.get("IS_ADMIN", False):
-    st.sidebar.subheader("Admin Login")
-    password = st.sidebar.text_input("password", type="password")
-    st.sidebar.button("Login", on_click=login(password))
+setup_admin_pages()
 
 def change_variable(environment_variable: str, new_value: str):
     """Update session state with new endpoint or notify if no changes."""
@@ -89,5 +86,5 @@ setup_text_field("EXTERNAL_OLLAMA_API_URL", "external Ollama endpoint")
 setup_text_field("EXTERNAL_OLLAMA_API_KEY", "optional API key")
 setup_text_field("GOOGLE_APPLICATION_CREDENTIALS", "optional Google App Credentials")
 
-st.subheader("admin password")
+st.subheader("Admin credentials")
 setup_text_field("ADMIN_PASSWORD", "admin password", "password")
