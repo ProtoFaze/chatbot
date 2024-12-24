@@ -1,4 +1,4 @@
-.streamlit/secrets.toml
+src/.streamlit/secrets.toml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -159,9 +159,6 @@ cython_debug/
 # Data files
 data/
 
-# Git ignore file
-.gitignore
-
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
@@ -173,3 +170,4 @@ data.json
 
 /testing
 .DS_Store
+.gitignore
