@@ -144,20 +144,20 @@ st.header('Chatbot for the Great Multiple Benefits Insurance Scheme')
 
 def st_module_chat():
     st.header("Chat")
-    if st.button("Reset chat window"):
+    if st.button("Reset chat window", use_container_width=True):
         initialize_messages()
 
 ### Streamlit app
 initialize_chat_session()
 
-setup_admin_pages()
-
 with st.sidebar:
-    llm_client = setup_LLM()
     st.page_link(icon="📣",
                  label=":orange[link to product]",
                  page='https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
+    llm_client = setup_LLM()
+    setup_admin_pages()
+
     st_module_chat()    
     setup_mongo()
     fetch_chat_ids()
@@ -203,8 +203,8 @@ def chat(prompt: str):
 if prompt := st.chat_input("How can I help?"):
     chat(prompt)
 
-# questions = list(st.session_state['mongo_client'][st.session_state['MONGODB_DB']]['sample_questions'].find({},{'question':1}))
-# columns = st.columns(len(questions))
-# for i, question in enumerate(questions):
-#    if columns[i].button(label=question['question']):
-#        chat(question['question'])
+questions = list(st.session_state['mongo_client'][st.session_state['MONGODB_DB']]['sample_questions'].find({},{'question':1}))
+sidebar_expander = st.sidebar.expander('Sample questions')
+for question in questions:
+    if sidebar_expander.button(label=question['question']):
+        chat(question['question'])
