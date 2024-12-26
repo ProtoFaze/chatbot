@@ -43,7 +43,7 @@ def delete_page(page_name: str, main_script_path_str: str = 'Chat'):
             pass
     _on_pages_changed.send()
 
-def add_page(page_name: str, main_script_path_str: str = 'Chat'):
+def add_page(page_name: str, main_script_path_str: str = 'src/Chat'):
     '''Add pages for authorized users'''
     pages = get_pages(main_script_path_str)
     main_script_path = Path(main_script_path_str)
