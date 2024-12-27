@@ -66,7 +66,7 @@ def add_page(page_name: str, main_script_path_str: str = 'src/Chat'):
 # Initialize session state with defaults from secrets
 def initialize_streamlit_session():
     for secret_key in st.secrets:
-        if secret_key not in st.session_state and secret_key not in ['MONGODB_URI']:
+        if secret_key not in st.session_state and secret_key not in ['MONGODB_URI', 'ADMIN_EMAIL']:
             st.session_state[secret_key] = st.secrets[secret_key]
 
 #connection to ollama API
