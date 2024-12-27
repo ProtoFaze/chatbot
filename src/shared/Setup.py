@@ -9,6 +9,7 @@ from llama_index.core import Settings, VectorStoreIndex
 from pymongo import MongoClient
 import streamlit as st
 
+from typing import Literal
 from pathlib import Path
 from streamlit.source_util import (
     page_icon_and_name, 
@@ -69,13 +70,11 @@ def initialize_streamlit_session():
             st.session_state[secret_key] = st.secrets[secret_key]
 
 #connection to ollama API
-def setup_LLM():
-    connection_type = st.selectbox("Select your ollama connection type", ["localhost ollama", 'external ollama'],index=1)
+def setup_LLM(connection_type: Literal['external ollama', 'localhost ollama'] = None):
+    if connection_type is None:
+        connection_type = st.selectbox("Select your ollama connection type", ['external ollama', 'localhost ollama'])
     llm_client = None
     match connection_type:
-        case "localhost ollama":
-            llm_client = ollama
-            Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text')
         case "external ollama":
             token = None
             if st.session_state['GOOGLE_APPLICATION_CREDENTIALS'] != 'default':
@@ -89,6 +88,9 @@ def setup_LLM():
                 headers = headers
                 )
             Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text',base_url=ollama_url,headers=headers)
+        case "localhost ollama":
+            llm_client = ollama
+            Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text')
     st.session_state['llm_client'] = llm_client
     return llm_client
 

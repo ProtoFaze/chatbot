@@ -18,7 +18,7 @@ def show_chat_details(item: dict):
 
 def analyse_chatlog(chat_record):
     if 'llm_client' not in st.session_state:
-        llm_client = setup_LLM()
+        llm_client = setup_LLM('external ollama')
     else:
         llm_client = st.session_state['llm_client']
     chatlog = ''
