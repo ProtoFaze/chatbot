@@ -73,7 +73,7 @@ if st.session_state['IS_ADMIN']:
             if (st.secrets['ADMIN_PASSWORD'] == st.session_state['ADMIN_PASSWORD']) and (st.experimental_user['email'] in st.secrets['ADMIN_EMAIL']): 
                 if st.button(label = "Chatlog - "+item['created_on'].strftime("%Y-%b-%d %H:%M:%S"),use_container_width=True):
                     show_chat_details(item)
-            elif st.experimental_user['email'] not in st.secrets['ADMIN_EMAIL']: #not admin but identifiable (experimental user email not in secrets)
+            elif (st.experimental_user['email'] not in st.secrets['ADMIN_EMAIL']) and (st.experimental_user['email'] not in st.secrets['ADMIN_EMAIL'] is not None): #not admin but identifiable (experimental user email not in secrets)
                 if st.experimental_user['email'] == item['user_id']:
                     if st.button(label = "Chatlog - "+item['created_on'].strftime("%Y-%b-%d %H:%M:%S"),use_container_width=True):
                         show_chat_details(item)
