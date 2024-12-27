@@ -32,8 +32,12 @@ def analyse_chatlog(chat_record):
     with st.spinner("Analyzing chatlog"):
         prompt = f"""{chatlog}
 
-Analyse the chatlog, tell me the overall user sentiment, overal user interest in the product the AI is advertising, key topics in the conversation, is the user not interested in signing up, and the disengagement reason.
-please reply in json format.
+Analyze the provided chat log and return the following details in JSON format:
+1. Overall user sentiment (e.g., positive, neutral, negative).
+2. Overall user interest level in the product being advertised.
+3. Key topics discussed in the conversation.
+4. Whether the user is interested in signing up for the product.
+5. If the user is not interested, provide reasons for their lack of interest.
 """
         response = llm_client.generate(model = 'llama3.2',
                                        prompt = prompt,
@@ -84,7 +88,6 @@ if st.session_state['IS_ADMIN']:
     if st.button(label = "Analyse Chatlog"):
         if analysis_results is None and len(st.session_state['inspecting_chat_collection']['chatlog'])>2:
             analysis_results = analyse_chatlog(st.session_state['inspecting_chat_collection'])
-            
             st.session_state['inspecting_chat_collection']['analysis_results'] = analysis_results
             st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].update_one({'_id': st.session_state['inspecting_chat_collection']['_id']},
                                                                                             {'$set':

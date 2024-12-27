@@ -52,7 +52,6 @@ for classifying 'normal', 'register', 'rag' intents
     return response.intent
 
 def get_response(user_input: str, intent: Literal["normal","register","rag","verify"] = None):
-    print('getting response')
     if intent is None:
         with st.spinner("detecting intent..."):
             intent = classify_intent(user_input)
