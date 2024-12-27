@@ -61,10 +61,10 @@ if 'IS_ADMIN' not in st.session_state:
 if st.session_state['IS_ADMIN']:
     if 'mongo_client' not in st.session_state:
         setup_mongo()
-    chat_ids = list(st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1, "created_on": 1}))
+    chat_ids = list(st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1, "created_on": 1, "user_id": 1}))
     chat_ids.reverse()
     with st.sidebar:
-        st.experimental_user
+        st.experimental_user['email']
         setup_LLM()
         '---'
         st.write("Chatlogs")
@@ -74,6 +74,8 @@ if st.session_state['IS_ADMIN']:
                 if st.button(label = "Chatlog - "+item['created_on'].strftime("%Y-%b-%d %H:%M:%S"),use_container_width=True):
                     show_chat_details(item)
             elif (st.experimental_user['email'] not in st.secrets['ADMIN_EMAIL']) and (st.experimental_user['email'] not in st.secrets['ADMIN_EMAIL'] is not None): #not admin but identifiable (experimental user email not in secrets)
+                print(st.experimental_user['email'])
+                
                 if st.experimental_user['email'] == item['user_id']:
                     if st.button(label = "Chatlog - "+item['created_on'].strftime("%Y-%b-%d %H:%M:%S"),use_container_width=True):
                         show_chat_details(item)
