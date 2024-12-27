@@ -72,7 +72,7 @@ def initialize_streamlit_session():
 #connection to ollama API
 def setup_LLM(connection_type: Literal['external ollama', 'localhost ollama'] = None):
     if connection_type is None:
-        connection_type = st.selectbox("Select your ollama connection type", ['external ollama', 'localhost ollama'])
+        connection_type = st.selectbox("Select your ollama connection type", ['external ollama'])
     llm_client = None
     match connection_type:
         case "external ollama":
