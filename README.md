@@ -2,22 +2,22 @@
 
 A simple streamlit app that does RAG 
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://chatbot-template.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://poc-gmbis-chatbot.streamlit.app/)
 
 ### How to run it on your own machine
-1. setup your environment secrets, refer to .streamlit/secrets.toml.example
+1. Setup your environment secrets, refer to .streamlit/secrets.toml.example
 
-2. Install the requirements
+2. Install the dependencies
 
    ```
    $ cd src
-   $ pip install -r requirements.txt
+   $ pip install -r src/requirements.txt
    ```
 
 3. Run the app
 
    ```
-   $ streamlit run Chat.py
+   $ streamlit run src/Chat.py
    ```
 
 ### How to setup your own remote llm endpoint with ollama and modal labs
@@ -37,7 +37,7 @@ A simple streamlit app that does RAG
    $ pip install modal
    ```
 
-4. Follow the instructions in your browser to authenticate your computer for controlling your modal account
+4. Follow the instructions in your browser to authenticate your device for accessing your modal account
    ```
    $ modal setup
    ```
@@ -49,53 +49,59 @@ A simple streamlit app that does RAG
    ```
    Your terminal / command line interface should show a url to access the server
 
-6. In your frontend, navigate to the settings page, and fill in the previous url into the ollama endpoint field and submit.
+6. Change the endpoint
+   - In your frontend, navigate to the settings page, and fill in the previous url into the ollama endpoint field and submit, 
+   - or just change the environment variable or secrets that your frontend accesses for ollama endpoints.  
+   (uses `.toml` by default, feel free to refactor to use `.env`)
 
 7. Try running your own server in the chat page now.
 
 # Salesman Chatbot
-This project is a step by step development project of an insurance salesman chatbot,    
+This is a step by step development of an insurance salesman chatbot proof-of-concept,    
 The chatbot should be able to access the corpus of data related to a product it is advertising,   
-The bot POC is set up using open source and free tier options, no free trials from providers required.
+The POC is set up using open source and free tier options, no free trials from providers required.
 
 
 # Tech/AI stack  
 POLM  
 Python version 3.12  
 Ollama for edge device language model hosting  
-LlamaIndex for DAQ and indexing  
-Modal labs for hosting asgi web endpoints and llm inference  
+LlamaIndex for parsing and ingestion
+Modal labs for provisioning computes to develop and test with ASGI web endpoints and llm inference  
 MongoDB Atlas for data storage  
-
+Streamlit for user interface  
 # concepts
-RAG  
+Retrieval Augmented Generation (RAG)  
 Structured LLM output  
+Few-shot prompting
 
 # Further Improvements
-- [x] pdf processing pipeline  (via notebook)
+- [x] pdf processing workflow  (via notebook)
 - [x] structured data corpus fetch
+- [x] structured outputs via json schema
 - [x] basic chatlog analysis
 
 # Acknowledgement
-Thanks for sharing these demos and blogs  
-using streamlit with ollama for prototyping   
+Thanks for sharing these demos and blogs:  
+
+Using streamlit with Ollama for prototyping   
 [demo of streamlit with ollama](https://github.com/tonykipkemboi/ollama_streamlit_demos/blob/main/01_%F0%9F%92%AC_Chat.py)  
 
-using llamaparse with ollama  
+Using llamaparse with Ollama  
 [the repo](https://github.com/sudarshan-koirala/llamaparser-example/blob/main/parser-ollama.py)   
 [the blog article](https://medium.com/@sudarshan-koirala/super-easy-way-to-parse-pdfs-a528fc9c2ea6)  
 
-integrating llamaparse vector indexes with mongodb  
+Integrating Llamaparse vector indexes with Mongodb  
 [How to Build a RAG System With LlamaIndex, OpenAI, and MongoDB Vector Database](https://www.mongodb.com/developer/products/atlas/rag-with-polm-stack-llamaindex-openai-mongodb/)  
 
-using ollama as a freemium backend service  
+Using Ollama as a freemium backend service  
 [run ollama with modal](https://github.com/irfansharif/ollama-modal)
 
-setting up response streaming via fastAPI(compatible with modal labs)  
+Setting up response streaming via fastAPI(compatible with modal labs)  
 [FastAPI Streaming Response: Error: Did not receive done or success response in stream](https://kontext.tech/article/1377/fastapi-streaming-response-error-did-not-receive-done-or-success-response-in-stream) 
 
-using structured outputs on ollama  
+Using structured outputs on Ollama  
 [Structured outputs](https://ollama.com/blog/structured-outputs)
 
-sharing how to control page visibility on streamlit  
+Controling page visibility on Streamlit  
 [Hide/show pages in multipage app based on conditions](https://discuss.streamlit.io/t/hide-show-pages-in-multipage-app-based-on-conditions/28642)
