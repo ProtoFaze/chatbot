@@ -68,10 +68,11 @@ class Ollama:
         return ollama_version()
     
     @modal.method()
-    def warmup(self):
+    def warmup(self, model: str, **kwargs):
         '''Warmup the model.'''
-        ollama.generate(self.model)
-        return {"status": "ok"}
+        print('loading model')
+        ping = ollama.generate(model=model, **kwargs)
+        return {"status": f"{model} warmed up"}
 
     @modal.method()
     def chat(self, model: str, messages: list, tools: list = [], stream=True, **kwargs):
@@ -165,6 +166,13 @@ class Ollama:
         elif response is not None:
             yield json.loads(response.content)
 
+@web_app.post("/api/warmup")
+async def warmup(request: Request):
+    '''Warmup the model'''
+    ollama = Ollama()
+    params = await request.json()
+    res = ollama.warmup.remote(**params)
+    return JSONResponse(content=res)
 
 @web_app.post("/api/chat")
 async def chat(request: Request):

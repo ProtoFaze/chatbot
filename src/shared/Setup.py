@@ -118,4 +118,3 @@ def fetch_chat_ids():
     if unique_id not in id_list and "session_id" not in st.session_state:
         st.session_state['session_id'] = unique_id
         st.session_state['id_list'].append(unique_id)
-
