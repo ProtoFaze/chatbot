@@ -83,7 +83,10 @@ using streamlit with ollama for prototyping
 
 using llamaparse with ollama  
 [the repo](https://github.com/sudarshan-koirala/llamaparser-example/blob/main/parser-ollama.py)   
-[the blog article](https://medium.com/@sudarshan-koirala/super-easy-way-to-parse-pdfs-a528fc9c2ea6)
+[the blog article](https://medium.com/@sudarshan-koirala/super-easy-way-to-parse-pdfs-a528fc9c2ea6)  
+
+integrating llamaparse vector indexes with mongodb  
+[How to Build a RAG System With LlamaIndex, OpenAI, and MongoDB Vector Database](https://www.mongodb.com/developer/products/atlas/rag-with-polm-stack-llamaindex-openai-mongodb/)  
 
 using ollama as a freemium backend service  
 [run ollama with modal](https://github.com/irfansharif/ollama-modal)
