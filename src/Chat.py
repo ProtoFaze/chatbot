@@ -205,10 +205,10 @@ def chat(prompt: str):
 if prompt := st.chat_input("How can I help?"):
     chat(prompt)
 
-with st.sidebar:
-    if 'last_warmup' not in st.session_state or (datetime.datetime.now() - st.session_state['last_warmup']).seconds > 180:
-        st.session_state['last_warmup'] = datetime.datetime.now()
-        warmup_LLM()
+# with st.sidebar:
+#     if 'last_warmup' not in st.session_state or (datetime.datetime.now() - st.session_state['last_warmup']).seconds > 180:
+#         st.session_state['last_warmup'] = datetime.datetime.now()
+#         warmup_LLM()
 
 questions = list(st.session_state['mongo_client'][st.session_state['MONGODB_DB']]['sample_questions'].find({},{'question':1}))
 sidebar_expander = st.sidebar.expander('Sample questions')
