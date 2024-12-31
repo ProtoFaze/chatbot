@@ -70,9 +70,12 @@ class Ollama:
     @modal.method()
     def warmup(self, model: str, **kwargs):
         '''Warmup the model.'''
-        print('loading model')
-        ping = ollama.generate(model=model, **kwargs)
-        return {"status": f"{model} warmed up"}
+        print(f'loading {model}')
+        try: #warmup language models with generate
+            ping = ollama.generate(model=model, **kwargs)
+        except ollama._types.ResponseError as e: #fallback for embedding models
+            ping = ollama.embed(model=model, input="", **kwargs)
+        return f"{model} warmed up"
 
     @modal.method()
     def chat(self, model: str, messages: list, tools: list = [], stream=True, **kwargs):
@@ -115,7 +118,7 @@ class Ollama:
         embeddings = json.loads(response.content).get("embeddings")
         print("returned embeddings")
         print(embeddings)
-        print(len(embeddings[0]))
+        # print(len(embeddings[0]))
         return json.loads(response.content)
 
     @modal.method()

@@ -9,6 +9,8 @@ from llama_index.core import Settings, VectorStoreIndex
 from pymongo import MongoClient
 import streamlit as st
 
+import requests
+import json
 from typing import Literal
 from pathlib import Path
 from streamlit.source_util import (
@@ -21,6 +23,7 @@ from streamlit.source_util import (
 def setup_admin_pages():
     if not st.session_state.get("IS_ADMIN", False):
         delete_page("Dashboard")
+        st.session_state['IS_ADMIN'] = False
         st.sidebar.subheader("Admin Login")
         password = st.sidebar.text_input("password", type="password")
         st.sidebar.button("Login", on_click=login(password))
@@ -93,6 +96,19 @@ def setup_LLM(connection_type: Literal['external ollama', 'localhost ollama'] = 
             Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text')
     st.session_state['llm_client'] = llm_client
     return llm_client
+
+def warmup_LLM():
+    url = f"{st.session_state.get('EXTERNAL_OLLAMA_API_URL',st.secrets["EXTERNAL_OLLAMA_API_URL"])}/api/warmup"
+    default_models = ['intentClassifier','nomic-embed-text','C3']
+    with st.status("Warming up models", state='running'):
+        for model in default_models:
+            warmup_command = requests.post(url= url, json={"model": model})
+            response =  warmup_command.content.decode()
+            if warmup_command.status_code == 200:
+                st.success(response)
+                continue
+            else:
+                st.error(f"{response}\n   {model} might run slower than expected upon first use", )
 
 def setup_mongo():
     # Connect to your MongoDB Atlas(Cloud) cluster

@@ -2,7 +2,7 @@ import streamlit as st
 from bson.objectid import ObjectId as oid 
 import datetime
 from shared.Models import Intent
-from shared.Setup import initialize_streamlit_session, setup_LLM, setup_mongo, fetch_chat_ids, setup_admin_pages
+from shared.Setup import initialize_streamlit_session, setup_LLM, warmup_LLM, setup_mongo, fetch_chat_ids, setup_admin_pages
 from typing import Literal
 
 st.set_page_config(
@@ -14,7 +14,7 @@ st.set_page_config(
     )
 
 def initialize_messages():
-    st.session_state['messages'] = []
+    st.session_state['messages'] = [{"role": "assistant", "content": "Hello! I'm C3, your friendly customer service chatbot at Great Eastern Life Assurance Malaysia. I'm here to help answer any questions you may have about our Group Multiple Benefit Insurance Scheme (GMBIS). Feel free to ask me anything, and I'll do my best to provide you with accurate and helpful information. How can I assist you today?"}]
     
 # setup connections
 def get_context(question: str):
@@ -48,8 +48,12 @@ for classifying 'normal', 'register', 'rag' intents
             stream = False,
             format=Intent.model_json_schema()
         )
-    response = Intent.model_validate_json(response.message.content)
-    return response.intent
+    response: Intent
+    try:
+        response = Intent.model_validate_json(response.message.content)
+        return response.intent
+    except Exception as e: #fallback in case of potential invalid json schema
+        return 'default'
 
 def get_response(user_input: str, intent: Literal["normal","register","rag","verify"] = None):
     if intent is None:
@@ -126,7 +130,6 @@ Request: {user_input}"""}]
                 stream = True), intent)
         case _:
             with st.spinner("fetching default response"):
-                st.write('default')
                 return (llm_client.chat(
                     model = st.session_state['MODEL'],
                     messages = [{"role":"user", 
@@ -154,7 +157,7 @@ with st.sidebar:
                  label=":orange[link to product]",
                  page='https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
-    llm_client = setup_LLM('external ollama')
+    llm_client = setup_LLM('localhost ollama')
     setup_admin_pages()
 
     st_module_chat()    
@@ -202,8 +205,11 @@ def chat(prompt: str):
 if prompt := st.chat_input("How can I help?"):
     chat(prompt)
 
+with st.sidebar:
+    warmup_LLM()
+
 questions = list(st.session_state['mongo_client'][st.session_state['MONGODB_DB']]['sample_questions'].find({},{'question':1}))
 sidebar_expander = st.sidebar.expander('Sample questions')
 for question in questions:
-    if sidebar_expander.button(label=question['question']):
+    if sidebar_expander.button(label=question['question'], use_container_width=True):
         chat(question['question'])
