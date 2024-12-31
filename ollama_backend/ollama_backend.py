@@ -50,7 +50,7 @@ app = modal.App(name="llama_ptfz")
     volumes={model_store_path: volume},
     image=image,
     mounts=[mount],
-    container_idle_timeout=60,
+    container_idle_timeout=180,
 )
 class Ollama:
     '''Ollama class for handling calls to the endpoint'''

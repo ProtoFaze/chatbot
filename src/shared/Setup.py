@@ -108,7 +108,7 @@ def warmup_LLM():
                 st.success(response)
                 continue
             else:
-                st.error(f"{response}\n   {model} might run slower than expected upon first use" )
+                st.error(f"{response}\n   {model} might run slower than expected upon first use")
 
 def setup_mongo():
     # Connect to your MongoDB Atlas(Cloud) cluster
