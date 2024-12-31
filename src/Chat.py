@@ -206,7 +206,8 @@ if prompt := st.chat_input("How can I help?"):
     chat(prompt)
 
 with st.sidebar:
-    warmup_LLM()
+    if len(st.session_state['messages'])<2:
+        warmup_LLM()
 
 questions = list(st.session_state['mongo_client'][st.session_state['MONGODB_DB']]['sample_questions'].find({},{'question':1}))
 sidebar_expander = st.sidebar.expander('Sample questions')
