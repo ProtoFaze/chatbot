@@ -3,8 +3,6 @@ from shared.Setup import initialize_streamlit_session, setup_admin_pages
 st.set_page_config(page_title="Settings", page_icon=":gear:",layout="wide")
 initialize_streamlit_session()
 
-setup_admin_pages()
-
 def change_variable(environment_variable: str, new_value: str):
     """Update session state with new endpoint or notify if no changes."""
     default_value = st.secrets.get(environment_variable, "default_value")
@@ -88,3 +86,7 @@ setup_text_field("GOOGLE_APPLICATION_CREDENTIALS", "optional Google App Credenti
 
 st.subheader("Admin credentials")
 setup_text_field("ADMIN_PASSWORD", "admin password", "password")
+
+with st.sidebar:
+    st.subheader("Admin Settings")
+    st.session_state['IS_ADMIN']

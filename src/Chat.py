@@ -153,13 +153,13 @@ def st_module_chat():
 initialize_chat_session()
 
 with st.sidebar:
+    st.subheader("Chat")
     st.page_link(icon="📣",
                  label=":orange[link to product]",
                  page='https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
     llm_client = setup_LLM('external ollama')
     setup_admin_pages()
-
     st_module_chat()    
     setup_mongo()
     fetch_chat_ids()

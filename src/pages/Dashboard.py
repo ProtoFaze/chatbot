@@ -64,9 +64,9 @@ if st.session_state['IS_ADMIN']:
     chat_ids = list(st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1, "created_on": 1}))
     chat_ids.reverse()
     with st.sidebar:
-        setup_LLM()
-        '---'
-        st.write("Chatlogs")
+        st.subheader('Admin Dashboard')
+        setup_LLM('external ollama')
+        "Chatlogs"
         for item in chat_ids:
             if st.button(label = "Chatlog - "+item['created_on'].strftime("%Y-%b-%d %H:%M:%S"),use_container_width=True): 
                 show_chat_details(item)

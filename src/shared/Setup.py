@@ -23,10 +23,16 @@ from streamlit.source_util import (
 def setup_admin_pages():
     if not st.session_state.get("IS_ADMIN", False):
         delete_page("Dashboard")
+        delete_page("Setting")
         st.session_state['IS_ADMIN'] = False
         st.sidebar.subheader("Admin Login")
         password = st.sidebar.text_input("password", type="password")
         st.sidebar.button("Login", on_click=login(password))
+    else:
+        # st.write(get_pages('src/Chat'))
+        add_page('Dashboard')
+        add_page('Setting')
+
 
 def login(password: str):
     st.session_state['IS_ADMIN'] = password == st.session_state['ADMIN_PASSWORD']
@@ -56,8 +62,11 @@ def add_page(page_name: str, main_script_path_str: str = 'src/Chat'):
     script_files = [f for f in all_scripts if f.name.find(page_name) != -1]
     script_path = script_files[0]
     script_path_str = str(script_path.resolve())
-    pi, pn = page_icon_and_name(script_path)
+    # if psh in pages:
+    #     print(f"Page {page_name} already exists")
+    #     return
     psh = calc_md5(script_path_str)
+    pi, pn = page_icon_and_name(script_path)
     pages[psh] = {
         "page_script_hash": psh,
         "page_name": pn,
