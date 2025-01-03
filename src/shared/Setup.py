@@ -10,70 +10,14 @@ from pymongo import MongoClient
 import streamlit as st
 
 import requests
-import json
 from typing import Literal
-from pathlib import Path
-from streamlit.source_util import (
-    page_icon_and_name, 
-    calc_md5, 
-    get_pages,
-    _on_pages_changed
-)
 
-def setup_admin_pages():
-    if not st.session_state.get("IS_ADMIN", False):
-        delete_page("Dashboard")
-        delete_page("Setting")
-        st.session_state['IS_ADMIN'] = False
-        st.sidebar.subheader("Admin Login")
-        password = st.sidebar.text_input("password", type="password")
-        st.sidebar.button("Login", on_click=login(password))
-    else:
-        # st.write(get_pages('src/Chat'))
-        add_page('Dashboard')
-        add_page('Setting')
 
 
 def login(password: str):
     st.session_state['IS_ADMIN'] = password == st.session_state['ADMIN_PASSWORD']
     if st.session_state['IS_ADMIN']:
-        add_page('Dashboard')
         st.rerun()
-    else:
-        delete_page('Dashboard')
-
-def delete_page(page_name: str, main_script_path_str: str = 'Chat'):
-    '''delete pages for unauthorized users'''
-    current_pages = get_pages(main_script_path_str)
-    for key, value in current_pages.items():
-        if value['page_name'] == page_name:
-            del current_pages[key]
-            break
-        else:
-            pass
-    _on_pages_changed.send()
-
-def add_page(page_name: str, main_script_path_str: str = 'src/Chat'):
-    '''Add pages for authorized users'''
-    pages = get_pages(main_script_path_str)
-    main_script_path = Path(main_script_path_str)
-    pages_dir = main_script_path.parent / "pages"
-    all_scripts = list(pages_dir.glob("*.py")) + list(main_script_path.parent.glob("*.py"))    
-    script_files = [f for f in all_scripts if f.name.find(page_name) != -1]
-    script_path = script_files[0]
-    script_path_str = str(script_path.resolve())
-    # if psh in pages:
-    #     print(f"Page {page_name} already exists")
-    #     return
-    psh = calc_md5(script_path_str)
-    pi, pn = page_icon_and_name(script_path)
-    pages[psh] = {
-        "page_script_hash": psh,
-        "page_name": pn,
-        "icon": pi,
-        "script_path": script_path_str,
-    }
-    _on_pages_changed.send()
 
 # Initialize session state with defaults from secrets
 def initialize_streamlit_session():
