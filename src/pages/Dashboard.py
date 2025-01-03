@@ -3,7 +3,6 @@ import streamlit as st
 from shared.Setup import setup_LLM, setup_mongo, initialize_streamlit_session, login
 from shared.Models import AnalysisResults
 initialize_streamlit_session()
-st.set_page_config(page_title="Dashboard", page_icon=":bar_chart:",layout="wide", menu_items={"about":"#Dashboard with a simple chatlog analysis function ,locked behind admin credentials"})
 @st.dialog("Chatlog will not be analysed")
 def show_analysis_dialog(chat_record):
     if len(chat_record['chatlog'])>2:
@@ -59,6 +58,10 @@ if 'IS_ADMIN' not in st.session_state:
     st.session_state['IS_ADMIN'] = False
     
 if st.session_state['IS_ADMIN']:
+    if 'llm_client' not in st.session_state:
+        llm_client = setup_LLM('external ollama')
+    else:
+        llm_client = st.session_state['llm_client']
     if 'mongo_client' not in st.session_state:
         setup_mongo()
     chat_ids = list(st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1, "created_on": 1}))

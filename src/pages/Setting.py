@@ -1,6 +1,5 @@
 import streamlit as st
-from shared.Setup import initialize_streamlit_session, setup_admin_pages
-st.set_page_config(page_title="Settings", page_icon=":gear:",layout="wide")
+from shared.Setup import initialize_streamlit_session
 initialize_streamlit_session()
 
 def change_variable(environment_variable: str, new_value: str):
