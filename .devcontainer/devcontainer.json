@@ -6,7 +6,7 @@
     "codespaces": {
       "openFiles": [
         "README.md",
-        "src/Chat.py"
+        "src/app.py"
       ]
     },
     "vscode": {
