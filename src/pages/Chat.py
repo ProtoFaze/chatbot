@@ -2,16 +2,8 @@ import streamlit as st
 from bson.objectid import ObjectId as oid 
 import datetime
 from shared.Models import Intent
-from shared.Setup import initialize_streamlit_session, setup_LLM, warmup_LLM, setup_mongo, fetch_chat_ids, setup_admin_pages
+from shared.Setup import setup_LLM, setup_mongo, fetch_chat_ids
 from typing import Literal
-
-st.set_page_config(
-        page_title="Chat about GMBIS",
-        page_icon="💬",
-        layout="wide",
-        initial_sidebar_state="expanded",
-        menu_items={"About": "Chat with the RAG chatbot about the GMBIS insurance scheme\n### How it works  \nThe RAG chatbot works by embedding user inputs.  \nThe inputs are then used to query a mongodb index.  \nThe top closest matches are then used to fetch the relevant document sections,  \nWhich is finally used as context for the response generation."}
-    )
 
 def initialize_messages():
     st.session_state['messages'] = [{"role": "assistant", "content": "Hello! I'm C3, your friendly customer service chatbot at Great Eastern Life Assurance Malaysia. I'm here to help answer any questions you may have about our Group Multiple Benefit Insurance Scheme (GMBIS). Feel free to ask me anything, and I'll do my best to provide you with accurate and helpful information. How can I assist you today?"}]
@@ -19,7 +11,7 @@ def initialize_messages():
 # setup connections
 def get_context(question: str):
     """Retrieves text-based information for an insurance product only based on the user query.
-does not answer quwstions about the chat agent"""
+does not answer questions about the chat agent"""
     context = []
     with st.spinner("retrieving context"):
         retriever = st.session_state['retriever']
@@ -136,16 +128,13 @@ Request: {user_input}"""}]
                                 "content":user_input}],
                     stream = True), intent)
 
-def initialize_chat_session():
-    initialize_streamlit_session()
-    
+def initialize_chat_session():    
     if 'messages' not in st.session_state:
         initialize_messages()
 
 st.header('Chatbot for the Great Multiple Benefits Insurance Scheme')
 
 def st_module_chat():
-    st.header("Chat")
     if st.button("Reset chat window", use_container_width=True):
         initialize_messages()
 
@@ -159,11 +148,11 @@ with st.sidebar:
                  page='https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
     llm_client = setup_LLM('external ollama')
-    setup_admin_pages()
     st_module_chat()    
     setup_mongo()
     fetch_chat_ids()
-    
+
+
 
 for message in st.session_state['messages']:
     if message["role"] == "system":
