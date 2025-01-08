@@ -2,10 +2,19 @@ import streamlit as st
 from bson.objectid import ObjectId as oid 
 import datetime
 from shared.Models import Intent
-from shared.Setup import setup_LLM, setup_mongo, fetch_chat_ids
+from shared.Setup import setup_LLM, setup_mongo, get_chat_ids, get_product_summary
 from typing import Literal
 
+def initialize_session_id():
+    '''Set the session ID to a random object ID'''
+    id_list = get_chat_ids()
+    unique_id = oid().__str__()
+    if unique_id not in id_list and "session_id" not in st.session_state:
+        st.session_state['session_id'] = unique_id
+        st.session_state['id_list'].append(unique_id)
+    
 def initialize_messages():
+    '''Set chat messages to the initial message'''
     st.session_state['messages'] = [{"role": "assistant", "content": "Hello! I'm C3, your friendly customer service chatbot at Great Eastern Life Assurance Malaysia. I'm here to help answer any questions you may have about our Group Multiple Benefit Insurance Scheme (GMBIS). Feel free to ask me anything, and I'll do my best to provide you with accurate and helpful information. How can I assist you today?"}]
     
 # setup connections
@@ -36,21 +45,23 @@ for classifying 'normal', 'register', 'rag' intents
 """
     response = llm_client.chat(
             model = "intentClassifier",
-            messages = [{"role":"user", "content":user_input}],
+            messages = st.session_state['messages'][-3:],
             stream = False,
             format=Intent.model_json_schema()
         )
-    response: Intent
+    IntentModel: Intent
     try:
-        response = Intent.model_validate_json(response.message.content)
-        return response.intent
+        IntentModel = Intent.model_validate_json(response.message.content)
+        return IntentModel.intent
     except Exception as e: #fallback in case of potential invalid json schema
         return 'default'
 
 def get_response(user_input: str, intent: Literal["normal","register","rag","verify"] = None):
+    '''Get the response from the chatbot based on the user input and intent'''
     if intent is None:
         with st.spinner("detecting intent..."):
             intent = classify_intent(user_input)
+    product_summary = get_product_summary()
     match intent:
         case "rag":
             return (get_context(user_input), intent)
@@ -69,42 +80,7 @@ def get_response(user_input: str, intent: Literal["normal","register","rag","ver
                 messages = st.session_state['messages'][-3:-1]+[{"role":"user", "content":f"""Respond naturally and contextually to suitable work-related requests. For requests that are inappropriate or outside your design, politely decline to address them.
 if the user asks about the insurance product, here is a summary
 summary:
-Group Multiple Benefit Insurance Scheme (GMBIS)
-Offered by Great Eastern Life Assurance (Malaysia) Berhad in partnership with Axiata Digital Ecode Sdn Bhd, this scheme provides financial coverage for employees, their legal spouses, and children. Key features include:
-Coverage
-    Critical Illnesses: Covers 45 critical illnesses with benefits ranging from RM20,000 to RM30,000.
-    Death and Accidental Death: Benefits range from RM20,000 to RM60,000 depending on premium.
-    Total and Permanent Disability (TPD): Coverage for illness and accidents, ranging from RM20,000 to RM60,000.
-    Hospitalisation: Daily income benefits up to RM30 per day for 500 days.
-    Funeral Expenses: A lump sum of RM5,000.
-
-Key Advantages
-    Fixed premiums for all ages and genders.
-    Low-cost premiums (starting at RM30/month).
-    Investment-linked with redemption options after 12 months.
-    Participation eligibility up to age 65.
-    Includes Shariah-approved securities (but not Shariah-compliant).
-
-Eligibility
-    Employees/members aged 19-60 years.
-    Spouses and children (unmarried, unemployed students up to age 23).
-
-Exclusions
-    Pre-existing conditions, suicide within the first year, and conditions resulting from activities like racing, scuba diving, or assault are excluded.
-
-Additional Benefits
-    Critical Illness/TPD Claims: Partial payout (50%) for claims within six months; full payout thereafter.
-    Retirement Fund: Redeemable at age 65 based on fund value.
-    Surrender Value: Redeemable before age 65, subject to minimum participation.
-
-Fees and Charges
-    Policy fee: RM5/month.
-    Fund management charge: 0.5% per annum.
-
-Important Notes:
-    The scheme is not Shariah-compliant.
-    Early termination may result in losses due to market volatility and charges.
-
+{product_summary}
 Request: {user_input}"""}]
             return (llm_client.chat(
                 model = st.session_state['MODEL'],
@@ -115,7 +91,10 @@ Request: {user_input}"""}]
                 messages = st.session_state['messages'][-3:-1]+[{"role":"user", "content":f"Please answer the given question with the following context:\
                     Question: {user_input}\
                     Context:\
-                    user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties."}]
+                    user info are gathered from previous campaigns and stored in a secure database, we do not share your information with third parties.\
+                    if the user asks about insurance product, here is a summary\
+                    summary:\
+                    {product_summary}"}]
             return (llm_client.chat(
                 model = st.session_state['MODEL'],
                 messages = messages,
@@ -128,7 +107,7 @@ Request: {user_input}"""}]
                                 "content":user_input}],
                     stream = True), intent)
 
-def initialize_chat_session():    
+def initialize_chat_session():
     if 'messages' not in st.session_state:
         initialize_messages()
 
@@ -150,7 +129,7 @@ with st.sidebar:
     llm_client = setup_LLM('external ollama')
     st_module_chat()    
     setup_mongo()
-    fetch_chat_ids()
+    initialize_session_id()
 
 
 
@@ -161,6 +140,7 @@ for message in st.session_state['messages']:
         st.chat_message(message['role']).write(message['content'])
 
 def chat(prompt: str):
+    '''Generate message boxes to simulate a chat conversation and store the chat logs in the database'''
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("user"):
