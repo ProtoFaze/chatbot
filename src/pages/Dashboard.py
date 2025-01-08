@@ -1,10 +1,26 @@
 import datetime
 import streamlit as st
-from shared.Setup import setup_LLM, setup_mongo, initialize_streamlit_session, login
+from shared.Setup import setup_LLM, setup_mongo, initialize_streamlit_session, login, get_chat_ids
 from shared.Models import AnalysisResults
+import time
 initialize_streamlit_session()
+
+@st.dialog('confirm delete chatlog?')
+def confirm_delete_dialog():
+    st.write("Are you sure you want to delete this chatlog?  \nthis action is irreversable.")
+    yes, no = st.columns(2)
+    if yes.button("Yes, delete"):
+        #send delete request to db, refresh chat ids and update the displayed chatlog
+        st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].delete_one({'_id': st.session_state['inspecting_chat_collection']['_id']})
+        get_chat_ids()
+        show_chat_details()
+        st.rerun()
+    if no.button("No, cancel"):
+        st.rerun()
+
 @st.dialog("Chatlog will not be analysed")
 def show_analysis_dialog(chat_record):
+    '''Show alert for blocking analysis'''
     if len(chat_record['chatlog'])>2:
         st.write("This chatlog has already been analysed.")
     else:
@@ -12,10 +28,14 @@ def show_analysis_dialog(chat_record):
     if st.button("Close"):
         st.rerun()
 
-def show_chat_details(item: dict):
+def show_chat_details(item: dict = None):
+    '''Set the chat collection to inspect'''
+    if item is None:
+        item = get_chat_ids(fetch_only_ids=False)[0]
     st.session_state['inspecting_chat_collection'] = st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].find_one({'_id': item['_id']})
 
 def analyse_chatlog(chat_record):
+    '''Analyse the chatlog based on a set of metrics'''
     if 'llm_client' not in st.session_state:
         llm_client = setup_LLM('external ollama')
     else:
@@ -54,6 +74,8 @@ def display_key_topics(topics):
     for topic in topics:
         st.markdown("- " + topic)
 
+
+
 if 'IS_ADMIN' not in st.session_state:
     st.session_state['IS_ADMIN'] = False
     
@@ -64,8 +86,7 @@ if st.session_state['IS_ADMIN']:
         llm_client = st.session_state['llm_client']
     if 'mongo_client' not in st.session_state:
         setup_mongo()
-    chat_ids = list(st.session_state['mongo_client'][st.session_state["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1, "created_on": 1}))
-    chat_ids.reverse()
+    chat_ids = get_chat_ids(fetch_only_ids=False)
     with st.sidebar:
         st.subheader('Admin Dashboard')
         setup_LLM('external ollama')
@@ -76,7 +97,11 @@ if st.session_state['IS_ADMIN']:
         if 'inspecting_chat_collection' not in st.session_state:
             show_chat_details(chat_ids[0])
 
-    st.header(st.session_state['inspecting_chat_collection']['created_on'].strftime("%Y-%B-%d %H:%M:%S"))
+    header_column, action_column = st.columns(spec=[0.9, 0.1], vertical_alignment='bottom')
+    header_column.header(st.session_state['inspecting_chat_collection']['created_on'].strftime("%Y-%B-%d %H:%M:%S"))
+
+    if action_column.button("Delete", use_container_width=True):
+        confirm_delete_dialog()
     with st.expander(label = "messages"):
         specific_chatlog = st.session_state['inspecting_chat_collection']['chatlog']
         for message in specific_chatlog:
