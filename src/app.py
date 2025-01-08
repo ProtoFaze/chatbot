@@ -1,11 +1,13 @@
 import streamlit as st
 
 from shared.Setup import initialize_streamlit_session, login
-
+from streamlit.navigation.page import StreamlitPage
 ### Streamlit app
 initialize_streamlit_session()
 Chat = st.Page("pages/Chat.py",title="Chat", icon="💬")
-
+#if you want to format display text, use markdown
+menu_items={"About": "Chat with the RAG chatbot about the GMBIS insurance scheme\n### How it works  \nThe RAG chatbot works by embedding user inputs.  \nThe inputs are then used to query a mongodb index.  \nThe top closest matches are then used to fetch the relevant document sections,  \nWhich is finally used as context for the response generation."}
+pg: StreamlitPage
 if st.session_state.get("IS_ADMIN", False):
 
     Dashboard = st.Page("pages/Dashboard.py",title="Dashboard", icon="📊")
@@ -15,9 +17,8 @@ if st.session_state.get("IS_ADMIN", False):
     st.set_page_config(
         layout="wide",
         initial_sidebar_state="expanded",
-        menu_items={"About": "Chat with the RAG chatbot about the GMBIS insurance scheme\n### How it works  \nThe RAG chatbot works by embedding user inputs.  \nThe inputs are then used to query a mongodb index.  \nThe top closest matches are then used to fetch the relevant document sections,  \nWhich is finally used as context for the response generation."}
+        menu_items=menu_items
     )
-    pg.run()
 else:
     pg = st.navigation([Chat])
     st.set_page_config(
@@ -25,10 +26,10 @@ else:
         page_icon="💬",
         layout="wide",
         initial_sidebar_state="expanded",
-        menu_items={"About": "Chat with the RAG chatbot about the GMBIS insurance scheme\n### How it works  \nThe RAG chatbot works by embedding user inputs.  \nThe inputs are then used to query a mongodb index.  \nThe top closest matches are then used to fetch the relevant document sections,  \nWhich is finally used as context for the response generation."}
+        menu_items=menu_items
     )
     st.sidebar.subheader("Admin Login")
     password = st.sidebar.text_input("password", type="password")
     if st.sidebar.button("Login"):
         login(password)
-    pg.run()
+pg.run()
