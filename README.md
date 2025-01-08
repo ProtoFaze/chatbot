@@ -21,7 +21,7 @@ A simple streamlit app that does RAG
    ```
 
 ### How to setup your own remote llm endpoint with ollama and modal labs
-> **Disclaimer:** This backend server is strictly for demonstrating a proof-of-concept for running LLMs on modal labs via ollama, you are encouraged to support Modal labs via their payed services for a better experience, support, and system scalability
+> **Disclaimer:** This backend server is strictly for demonstrating a proof-of-concept for running LLMs on modal labs via ollama, you are encouraged to support Modal labs via their payed services for a better experience, support, and system scalability, do check out their [pricing page](https://modal.com/pricing) if interested
 
 1. Setup an account on modal labs  
    [modal labs sign-up page](https://modal.com/signup?next=%2Fapps)
