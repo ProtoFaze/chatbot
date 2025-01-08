@@ -2,7 +2,7 @@ import streamlit as st
 from bson.objectid import ObjectId as oid 
 import datetime
 from shared.Models import Intent
-from shared.Setup import setup_LLM, setup_mongo, get_chat_ids, get_product_summary
+from shared.Setup import setup_LLM, setup_mongo, get_chat_ids, get_config
 from typing import Literal
 
 def initialize_session_id():
@@ -61,14 +61,14 @@ def get_response(user_input: str, intent: Literal["normal","register","rag","ver
     if intent is None:
         with st.spinner("detecting intent..."):
             intent = classify_intent(user_input)
-    product_summary = get_product_summary()
+    product_summary = get_config(field='PRODUCT_SUMMARY')
     match intent:
         case "rag":
             return (get_context(user_input), intent)
         case "register":
             with st.spinner("fetching registration instructions"):
                 messages = [{"role":"system", "content":f"""The user is asking about information for registering to the insurnace scheme.
-                             Always include this registration link [Great Multiple Benefits Insurance Scheme Promotional page](https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=message_link)
+                             Always include this registration link [Great Multiple Benefits Insurance Scheme Promotional page]({get_config('PROMOTIONAL_LINK')}/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=message_link)
                              And this admin contact number (03-48133818) in your responses to the user's query."""},
                     {"role":"user","content":f"{user_input}"}]
             return (llm_client.chat(
@@ -124,7 +124,7 @@ with st.sidebar:
     st.subheader("Chat")
     st.page_link(icon="📣",
                  label=":orange[link to product]",
-                 page='https://greatmultiprotect.com/gss315-spif/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
+                 page=f'{get_config('PROMOTIONAL_LINK')}/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
     llm_client = setup_LLM('external ollama')
     st_module_chat()    
