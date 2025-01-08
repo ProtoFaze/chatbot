@@ -94,10 +94,10 @@ def get_chat_ids(fetch_only_ids: bool = True):
     else:
         return return_list
 
-def get_product_summary():
+def get_config(field: str,role: Literal['public','admin'] = 'public'):
     '''Get the summary of the insurance product stored in the config collection of the relevant mongodb database'''
     if 'mongo_client' not in st.session_state:
         setup_mongo()
     mongo_client: MongoClient = st.session_state['mongo_client']
-    product_summary: str =  mongo_client[st.session_state['MONGODB_DB']]['config'].find_one({'role':'public'})['product_summary']
-    return product_summary
+    requested_value: str =  mongo_client[st.session_state['MONGODB_DB']]['config'].find_one({'role':role})[field]
+    return requested_value
