@@ -12,21 +12,22 @@ import streamlit as st
 import requests
 from typing import Literal
 
-
-
 def login(password: str):
+    '''Verify the password entered by the user'''
     st.session_state['IS_ADMIN'] = password == st.session_state['ADMIN_PASSWORD']
     if st.session_state['IS_ADMIN']:
         st.rerun()
 
 # Initialize session state with defaults from secrets
 def initialize_streamlit_session():
+    '''Initialize the session state with default values from the secrets'''
     for secret_key in st.secrets:
         if secret_key not in st.session_state and secret_key not in ['MONGODB_URI', 'ADMIN_EMAIL']:
             st.session_state[secret_key] = st.secrets[secret_key]
 
 #connection to ollama API
 def setup_LLM(connection_type: Literal['external ollama', 'localhost ollama'] = None):
+    '''Setup connection to the ollama API'''
     if connection_type is None:
         connection_type = st.selectbox("Select your ollama connection type", ['external ollama'])
     llm_client = None
@@ -51,6 +52,7 @@ def setup_LLM(connection_type: Literal['external ollama', 'localhost ollama'] = 
     return llm_client
 
 def warmup_LLM():
+    '''Experimental function to warmup the models in the ollama API'''
     url = f"{st.session_state.get('EXTERNAL_OLLAMA_API_URL',st.secrets["EXTERNAL_OLLAMA_API_URL"])}/api/warmup"
     default_models = ['intentClassifier','nomic-embed-text','C3']
     with st.status("Warming up models", state='running'):
@@ -64,7 +66,7 @@ def warmup_LLM():
                 st.error(f"{response}\n   {model} might run slower than expected upon first use")
 
 def setup_mongo():
-    # Connect to your MongoDB Atlas(Cloud) cluster
+    '''Setup connections to MongoDB Atlas as well as the llamaindex vector store and retriever'''
     mongo_client = MongoClient(st.secrets["MONGODB_URI"])
     st.session_state['mongo_client'] = mongo_client
     vector_store = MongoDBAtlasVectorSearch(
@@ -79,11 +81,23 @@ def setup_mongo():
     retriever = VectorIndexRetriever(index=vector_index, similarity_top_k=3)
     st.session_state['retriever'] = retriever
 
-def fetch_chat_ids():
-    ids = st.session_state['mongo_client'][st.secrets["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1})
-    id_list = [str(doc['_id']) for doc in ids]
-    st.session_state['id_list'] = id_list
-    unique_id = oid().__str__()
-    if unique_id not in id_list and "session_id" not in st.session_state:
-        st.session_state['session_id'] = unique_id
-        st.session_state['id_list'].append(unique_id)
+def get_chat_ids(fetch_only_ids: bool = True):
+    '''Fetch chat ids from the database and store a reversed list in the session state'''
+    mongo_client: MongoClient = st.session_state['mongo_client']
+    chatlog = mongo_client[st.secrets["MONGODB_DB"]]['chat_session'].find({}, {"_id": 1, "created_on": 1})
+    return_list: list = list(chatlog)
+    return_list.reverse()
+    if fetch_only_ids:
+        id_list = [str(doc['_id']) for doc in return_list]
+        st.session_state['id_list'] = id_list
+        return id_list
+    else:
+        return return_list
+
+def get_product_summary():
+    '''Get the summary of the insurance product stored in the config collection of the relevant mongodb database'''
+    if 'mongo_client' not in st.session_state:
+        setup_mongo()
+    mongo_client: MongoClient = st.session_state['mongo_client']
+    product_summary: str =  mongo_client[st.session_state['MONGODB_DB']]['config'].find_one({'role':'public'})['product_summary']
+    return product_summary
