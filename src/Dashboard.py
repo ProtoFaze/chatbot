@@ -55,9 +55,10 @@ Analyze the provided chat log and return the following details in JSON format:
 1. Overall user sentiment (e.g., positive, neutral, negative).
 2. Overall user interest level in the product being advertised.
 3. Key topics discussed in the conversation.
-4. Whether the user is interested in signing up for the product.
+4. Whether the user is interested in signing up for the product. (this can be judged by considering presence of: a) self identifying information like the current user's name, age, identification number. b) being 19 to 60 years old if age is given. c) explicitly asking for signing up d) more than 4 messages from the user)
 5. If the user is not interested, provide reasons for their lack of interest.
 """
+
         response = llm_client.generate(model = 'llama3.2',
                                        prompt = prompt,
                                        format = AnalysisResults.model_json_schema(),
@@ -129,7 +130,7 @@ if st.session_state['IS_ADMIN']:
     with left:
         display_results("Overall Sentiment", getattr(analysis_results, 'overall_user_sentiment', None))
         display_results("Interest in product", getattr(analysis_results, 'interest_in_product', None))
-        display_results("Sign-up Disengagement Flag", getattr(analysis_results, 'is_user_not_interested_in_signing_up', None))
+        display_results("Sign-up Disengagement Flag", getattr(analysis_results, 'is_user_not_interested_in_signing_up', False))
         display_results("Interactions", int(st.session_state['inspecting_chat_collection'].get('interactions', 0)))
     with right:
         st.write(":orange[Key Topics:] ")
