@@ -79,7 +79,10 @@ Few-shot prompting
 - [x] pdf processing workflow  (via notebook)
 - [x] structured data corpus fetch
 - [x] structured outputs via json schema
-- [x] basic chatlog analysis
+- [x] basic chatlog analysis and control
+- [x] sample questions integration via database connection
+- [x] chatbot abuse siteblock
+- [x] timeout message
 
 # Acknowledgement
 Thanks for sharing these demos and blogs:  
