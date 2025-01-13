@@ -314,7 +314,7 @@ def init_and_setup():
     messages = [{'role':'user','content':prompt}]
     multiturn_messages = messages+[
                           {"role": "assistant", "content": "Hi, my name is C3 your dedicated assistant for any enquiry about the group multiple benefit insurance plan by great eastern. How can I help you today?"},
-                          {"role": "user", "content": "what can you tell me about the plan"}
+                          {"role": "user", "content": "greetings good sir, would you like some bread"}
                         ]
     intentClassifier = 'intentClassifier'
     llm = 'llama3.2'

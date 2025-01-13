@@ -9,6 +9,7 @@ use rag if it is asking about insurance products (e.g., benefits, features, cove
 use register if the user explicitly requests assistance or guidance for account creation or signing up (e.g., "how do I register", "help me sign up"),
 use verify if the user expresses concern about this service being a scam,
 use abuse if the user shows an aggressive, hostile tone or attempts to waste time,
+use end if the user seeks no further help or thanks the system in a way that clearly ends the conversation (e.g., "No thanks, I'm good"),
 otherwise, classify as normal, 
 respond in the format: [reasoning], This is classified as [intent]
 
