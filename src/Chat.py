@@ -145,7 +145,7 @@ with st.sidebar:
                  label=":orange[link to product]",
                  page=f'{get_config('PROMOTIONAL_LINK')}/?utm_source=chatbot&utm_medium=cpc&utm_campaign=boost&utm_id=spif&utm_content=sidebar_link',
                  use_container_width=True)
-    llm_client = setup_LLM('localhost ollama')
+    llm_client = setup_LLM('external ollama')
     setup_mongo()
     st_module_chat()    
     initialize_session_id()

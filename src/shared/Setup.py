@@ -80,7 +80,7 @@ def warmup_LLM():
 def setup_mongo():
     '''Setup connections to MongoDB Atlas as well as the llamaindex vector store and retriever'''
     if 'llm_client' not in st.session_state:
-        setup_LLM('localhost ollama')
+        setup_LLM('external ollama')
     mongo_client = MongoClient(st.secrets["MONGODB_URI"])
     st.session_state['mongo_client'] = mongo_client
     vector_store = MongoDBAtlasVectorSearch(
