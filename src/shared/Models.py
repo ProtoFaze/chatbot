@@ -3,7 +3,7 @@ from typing import Literal
 
 class Intent(BaseModel):
     reasoning: str
-    intent: Literal["normal","register","rag","verify"]
+    intent: Literal["normal","register","rag","verify","abuse"]
 
 
 class AnalysisResults(BaseModel):

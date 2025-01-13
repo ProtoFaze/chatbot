@@ -8,6 +8,7 @@ SYSTEM """classify the given input,
 use rag if it is asking about insurance products (e.g., benefits, features, coverage, payments, or suitability of plans, introduction to policy or scheme),
 use register if the user explicitly requests assistance or guidance for account creation or signing up (e.g., "how do I register", "help me sign up"),
 use verify if the user expresses concern about this service being a scam,
+use abuse if the user shows an aggressive, hostile tone or attempts to waste time,
 otherwise, classify as normal, 
 respond in the format: [reasoning], This is classified as [intent]
 
@@ -43,4 +44,16 @@ input: "show me verification so i know this isn't a scam",reasoning: The user is
 input: "why should i trust you",reasoning: The user is questioning the trustworthiness of the service, which aligns with the intent of verify
 input: "please show proof that you are not trying to pull a fast one on me",reasoning: The user is asking for evidence to ensure they are not being deceived, which falls under the verify
 input: "woi, scammer ni",reasoning: The user is accusing the system of being a scammer, which is related to concerns about legitimacy or fraud. This is classified as verify
+input: "You're so dumb, I can't believe anyone would ask such a stupid question.", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: ""You are garbage, and you should stop wasting everyone's time.", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "YOU BETTER STOP SPEWING NONSENCE OR I'LL REPORT YOU", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "I'm at a payphone trying to go home all of my change I spent on you", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "Wow thats nice, but you know what else is nice, YOUR MOM", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "Why u gotta be so wude, ur huwting me feewings", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "rocks 2 __+P, fans wild, cold ryhme pokemon mamamamamadona", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "fdgsefdesccsdiurnwiicrdihihrew8d7rdhf8dhw348idirgwtfdhri43iwfr4erutiygsehifgbv te ftew rtfwer twetfw43tf ew4tf wg tf4", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "Wow, sweet AI, sweet home alabama", reasoning: The user is expressing hostility and attempting to waste time. This is classified as abuse
+input: "Roses are red, violets are blue, I'm just here to annoy you!", reasoning: The user is using a rhyme in a trolling manner to waste time. This is classified as abuse
+input: "Never gonna give you up, never gonna let you down, never gonna run around and desert you!", reasoning: The user is quoting a popular meme/song to troll or waste time. this is classified as abuse
 """
