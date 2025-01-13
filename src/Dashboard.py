@@ -52,11 +52,11 @@ def analyse_chatlog(chat_record):
         prompt = f"""{chatlog}
 
 Analyze the provided chat log and return the following details in JSON format:
-1. Overall user sentiment (e.g., positive, neutral, negative).
-2. Overall user interest level in the product being advertised.
-3. Key topics discussed in the conversation.
-4. Whether the user is interested in signing up for the product. (this can be judged by considering presence of: a) self identifying information like the current user's name, age, identification number. b) being 19 to 60 years old if age is given. c) explicitly asking for signing up d) more than 4 messages from the user)
-5. If the user is not interested, provide reasons for their lack of interest.
+1. Overall User Sentiment: Analyze the user's tone throughout the conversation. Options: positive, neutral, or negative.
+2. Overall User Interest Level: Indicate the user's level of interest in the advertised product. Options: low, low-medium, medium, medium-high, high.
+3. Key Topics Discussed: Identify key topics or questions raised by the user or addressed by the AI.
+4. Sign-up disinterest: Determine if the user is not likely interested in signing up. Indicate "False" if: the user explicitly asks to sign up, OR shares personal details (e.g., name, age, contact information), OR exchanges more than 4 messages and demonstrates interest in the product. If not interested, provide reasons such as negative sentiment, irrelevant inquiries, or unmet eligibility criteria.
+5. Reasons for Lack of Interest (if applicable): Provide detailed reasons if the user is not interested in signing up.
 """
 
         response = llm_client.generate(model = 'llama3.2',
