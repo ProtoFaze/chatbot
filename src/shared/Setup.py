@@ -8,10 +8,22 @@ from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.core import Settings, VectorStoreIndex
 from pymongo import MongoClient
 import streamlit as st
+import extra_streamlit_components.CookieManager as CookieManager
 
 import requests
 from typing import Literal
 
+ABUSE_CHANCE = 3
+
+def get_cookies_manager():
+    '''Get the cookie manager object'''
+    if 'cookies_manager_object' not in st.session_state:
+        manager = CookieManager()
+        st.session_state['cookies_manager_object'] = manager
+        return manager
+    else:
+        return st.session_state['cookies_manager_object']
+    
 def login(password: str):
     '''Verify the password entered by the user'''
     st.session_state['IS_ADMIN'] = password == st.session_state['ADMIN_PASSWORD']
@@ -67,6 +79,8 @@ def warmup_LLM():
 
 def setup_mongo():
     '''Setup connections to MongoDB Atlas as well as the llamaindex vector store and retriever'''
+    if 'llm_client' not in st.session_state:
+        setup_LLM('localhost ollama')
     mongo_client = MongoClient(st.secrets["MONGODB_URI"])
     st.session_state['mongo_client'] = mongo_client
     vector_store = MongoDBAtlasVectorSearch(
@@ -94,10 +108,10 @@ def get_chat_ids(fetch_only_ids: bool = True):
     else:
         return return_list
 
-def get_config(field: str,role: Literal['public','admin'] = 'public'):
+def get_config(field: str,scope: Literal['public','admin'] = 'public'):
     '''Get the summary of the insurance product stored in the config collection of the relevant mongodb database'''
     if 'mongo_client' not in st.session_state:
         setup_mongo()
     mongo_client: MongoClient = st.session_state['mongo_client']
-    requested_value: str =  mongo_client[st.session_state['MONGODB_DB']]['config'].find_one({'role':role})[field]
+    requested_value: str =  mongo_client[st.session_state['MONGODB_DB']]['config'].find_one({'scope':scope, 'field':field})['value']
     return requested_value
