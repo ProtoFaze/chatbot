@@ -66,7 +66,7 @@ The POC is set up using open source and free tier options, no free trials from p
 POLM  
 Python version 3.12  
 Ollama for edge device language model hosting  
-LlamaIndex for parsing and ingestion
+LlamaIndex for parsing and ingestion  
 Modal labs for provisioning computes to develop and test with ASGI web endpoints and llm inference  
 MongoDB Atlas for data storage  
 Streamlit for user interface  
